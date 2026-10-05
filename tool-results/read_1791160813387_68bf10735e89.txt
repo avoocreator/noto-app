@@ -1,0 +1,636 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useRef, useState } from 'react'
+     4→import {
+     5→  Bell, BellOff, Check, Cloud, CloudOff, Copy, Download, Info, Loader2, LogOut,
+     6→  Mail, Palette, RefreshCw, Save, Smartphone, Trash2, Upload, Volume2,
+     7→} from 'lucide-react'
+     8→import { api } from '@/lib/client'
+     9→import { useSettings, type FontChoice } from '@/lib/store'
+    10→import { ACCENT_SWATCHES, THEMES, applyTheme } from '@/lib/themes'
+    11→import { SOUND_PRESETS, playPreset, playDataUrl, type SoundPresetId } from '@/lib/sounds'
+    12→import { idbDel, idbGet, idbSet, CUSTOM_SOUND_KEY } from '@/lib/sound-store'
+    13→import {
+    14→  checkAuthState, normalizeSupabaseKey, normalizeSupabaseUrl,
+    15→  onSyncChange, scheduleSync, sendOtp, signOutCloud, syncNow, verifyOtp,
+    16→  type CloudSyncState,
+    17→} from '@/lib/sync'
+    18→import { Button } from '@/components/ui/button'
+    19→import { Input } from '@/components/ui/input'
+    20→import { Label } from '@/components/ui/label'
+    21→import { Slider } from '@/components/ui/slider'
+    22→import { Switch } from '@/components/ui/switch'
+    23→import { Badge } from '@/components/ui/badge'
+    24→import {
+    25→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    26→  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    27→} from '@/components/ui/alert-dialog'
+    28→import { cn } from '@/lib/utils'
+    29→import { toast } from 'sonner'
+    30→
+    31→const FONTS: { id: FontChoice; label: string; className: string }[] = [
+    32→  { id: 'sans', label: 'Sans (modern)', className: 'font-sans' },
+    33→  { id: 'serif', label: 'Serif (buku)', className: 'font-serif' },
+    34→  { id: 'mono', label: 'Mono (kode)', className: 'font-mono' },
+    35→]
+    36→
+    37→export function SettingsView() {
+    38→  const settings = useSettings()
+    39→  const [notifPermission, setNotifPermission] = useState<string>('default')
+    40→  const [hasCustomSound, setHasCustomSound] = useState(false)
+    41→  const [customName, setCustomName] = useState('')
+    42→  const [resetOpen, setResetOpen] = useState(false)
+    43→  const soundFileRef = useRef<HTMLInputElement>(null)
+    44→
+    45→  // Cloud sync state
+    46→  const [cloudState, setCloudState] = useState<CloudSyncState>('unconfigured')
+    47→  const [cloudMsg, setCloudMsg] = useState('')
+    48→  const [cloudEmail, setCloudEmail] = useState<string | null>(null)
+    49→  const [emailInput, setEmailInput] = useState('')
+    50→  const [otpSent, setOtpSent] = useState(false)
+    51→  const [otpInput, setOtpInput] = useState('')
+    52→  const [otpBusy, setOtpBusy] = useState(false)
+    53→
+    54→  useEffect(() => {
+    55→    const syncPermission = () => {
+    56→      if (typeof Notification !== 'undefined') setNotifPermission(Notification.permission)
+    57→    }
+    58→    syncPermission()
+    59→    idbGet(CUSTOM_SOUND_KEY).then((v) => setHasCustomSound(Boolean(v))).catch(() => {})
+    60→  }, [])
+    61→
+    62→  // Pantau status sinkronisasi cloud + sesi login
+    63→  useEffect(() => {
+    64→    const un = onSyncChange((s, m) => {
+    65→      setCloudState(s)
+    66→      setCloudMsg(m ?? '')
+    67→    })
+    68→    void checkAuthState().then((e) => {
+    69→      setCloudEmail(e)
+    70→      if (e) void syncNow().catch(() => {})
+    71→    })
+    72→    return un
+    73→  }, [])
+    74→
+    75→  const sendCode = async () => {
+    76→    if (!emailInput.includes('@')) return toast.error('Masukkan email yang valid')
+    77→    setOtpBusy(true)
+    78→    const r = await sendOtp(emailInput)
+    79→    setOtpBusy(false)
+    80→    if (r.ok) {
+    81→      setOtpSent(true)
+    82→      toast.success(r.message)
+    83→    } else toast.error(r.message)
+    84→  }
+    85→
+    86→  const verifyCode = async () => {
+    87→    if (otpInput.trim().length < 6) return toast.error('Kode 6 digit belum lengkap')
+    88→    setOtpBusy(true)
+    89→    const r = await verifyOtp(emailInput, otpInput)
+    90→    setOtpBusy(false)
+    91→    if (r.ok) {
+    92→      setOtpSent(false)
+    93→      setOtpInput('')
+    94→      setCloudEmail(await checkAuthState())
+    95→      toast.success(r.message)
+    96→    } else toast.error(r.message)
+    97→  }
+    98→
+    99→  const logoutCloud = async () => {
+   100→    await signOutCloud()
+   101→    setCloudEmail(null)
+   102→    setOtpSent(false)
+   103→    toast.success('Keluar dari cloud')
+   104→  }
+   105→
+   106→  const requestPermission = async () => {
+   107→    try {
+   108→      const p = await Notification.requestPermission()
+   109→      setNotifPermission(p)
+   110→      if (p === 'granted') toast.success('Izin notifikasi diberikan!')
+   111→      else toast.info('Izin notifikasi tidak diberikan. Pengingat tetap tampil sebagai toast.')
+   112→    } catch {
+   113→      toast.error('Gagal meminta izin notifikasi')
+   114→    }
+   115→  }
+   116→
+   117→  const testSound = async () => {
+   118→    if (settings.useCustomSound && hasCustomSound) {
+   119→      const d = await idbGet<string>(CUSTOM_SOUND_KEY)
+   120→      if (d) return playDataUrl(d, settings.notifVolume)
+   121→    }
+   122→    playPreset(settings.soundPreset, settings.notifVolume)
+   123→  }
+   124→
+   125→  const onUploadSound = async (file: File) => {
+   126→    if (file.size > 3 * 1024 * 1024) {
+   127→      toast.error('Ukuran maksimal 3 MB')
+   128→      return
+   129→    }
+   130→    try {
+   131→      const dataUrl = await new Promise<string>((resolve, reject) => {
+   132→        const r = new FileReader()
+   133→        r.onload = () => resolve(r.result as string)
+   134→        r.onerror = () => reject(r.error)
+   135→        r.readAsDataURL(file)
+   136→      })
+   137→      await idbSet(CUSTOM_SOUND_KEY, dataUrl)
+   138→      setHasCustomSound(true)
+   139→      setCustomName(file.name)
+   140→      settings.set({ useCustomSound: true })
+   141→      toast.success('Suara kustom tersimpan!')
+   142→      void playDataUrl(dataUrl, settings.notifVolume)
+   143→    } catch {
+   144→      toast.error('Gagal menyimpan suara')
+   145→    }
+   146→  }
+   147→
+   148→  const removeCustomSound = async () => {
+   149→    await idbDel(CUSTOM_SOUND_KEY)
+   150→    setHasCustomSound(false)
+   151→    setCustomName('')
+   152→    settings.set({ useCustomSound: false })
+   153→    toast.success('Suara kustom dihapus')
+   154→  }
+   155→
+   156→  const exportData = async () => {
+   157→    try {
+   158→      const data = await api<Record<string, unknown>>('/api/backup')
+   159→      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+   160→      const a = document.createElement('a')
+   161→      a.href = URL.createObjectURL(blob)
+   162→      a.download = `noto-backup-${new Date().toISOString().slice(0, 10)}.json`
+   163→      a.click()
+   164→      URL.revokeObjectURL(a.href)
+   165→      toast.success('Cadangan diunduh')
+   166→    } catch {
+   167→      toast.error('Gagal mengekspor data')
+   168→    }
+   169→  }
+   170→
+   171→  const importData = async (file: File) => {
+   172→    try {
+   173→      const text = await file.text()
+   174→      const data = JSON.parse(text)
+   175→      await api('/api/backup', { method: 'POST', body: JSON.stringify({ mode: 'replace', data }) })
+   176→      toast.success('Data berhasil dipulihkan! Memuat ulang…')
+   177→      setTimeout(() => window.location.reload(), 1200)
+   178→    } catch {
+   179→      toast.error('File cadangan tidak valid')
+   180→    }
+   181→  }
+   182→
+   183→  return (
+   184→    <div className="p-4 md:p-8 max-w-3xl mx-auto w-full pb-28 md:pb-12 space-y-6">
+   185→      <header>
+   186→        <h1 className="text-2xl font-bold tracking-tight">Pengaturan</h1>
+   187→        <p className="text-sm text-muted-foreground mt-1">Personalisasi Noto sesukamu.</p>
+   188→      </header>
+   189→
+   190→      {/* ── Tampilan ── */}
+   191→      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+   192→        <h2 className="font-bold flex items-center gap-2 mb-1">
+   193→          <Palette className="w-4 h-4 text-primary" /> Tampilan
+   194→        </h2>
+   195→        <p className="text-xs text-muted-foreground mb-4">8 mode warna siap pakai + aksen bebas.</p>
+   196→
+   197→        <Label className="text-xs text-muted-foreground">Mode Warna</Label>
+   198→        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-2 mb-5">
+   199→          {THEMES.map((t) => (
+   200→            <button
+   201→              key={t.id}
+   202→              onClick={() => settings.set({ themeId: t.id })}
+   203→              className={cn(
+   204→                'rounded-xl border-2 p-2.5 text-left transition-all hover:-translate-y-0.5',
+   205→                settings.themeId === t.id ? 'border-primary shadow-md' : 'border-border',
+   206→              )}
+   207→            >
+   208→              <div className="flex gap-1 mb-2">
+   209→                {[t.vars.background, t.vars.card, t.vars.primary, t.vars.foreground].map((c, i) => (
+   210→                  <span key={i} className="w-4 h-4 rounded-full border border-black/10" style={{ background: c }} />
+   211→                ))}
+   212→              </div>
+   213→              <p className="text-xs font-bold flex items-center gap-1">
+   214→                {t.name}
+   215→                {settings.themeId === t.id && <Check className="w-3 h-3 text-primary" />}
+   216→              </p>
+   217→              <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{t.desc}</p>
+   218→            </button>
+   219→          ))}
+   220→        </div>
+   221→
+   222→        <Label className="text-xs text-muted-foreground">Warna Aksen (kustom)</Label>
+   223→        <div className="flex items-center gap-2 flex-wrap mt-2 mb-1.5">
+   224→          <button
+   225→            onClick={() => settings.set({ accent: '' })}
+   226→            className={cn(
+   227→              'h-7 px-2.5 rounded-full text-xs font-semibold border transition-all',
+   228→              settings.accent === '' ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground',
+   229→            )}
+   230→          >
+   231→            Bawaan tema
+   232→          </button>
+   233→          {ACCENT_SWATCHES.map((c) => (
+   234→            <button
+   235→              key={c}
+   236→              onClick={() => { settings.set({ accent: c }); requestAnimationFrame(() => applyTheme(settings.themeId, c, settings.radius)) }}
+   237→              aria-label={`Aksen ${c}`}
+   238→              className={cn('w-7 h-7 rounded-full transition-transform hover:scale-110', settings.accent === c && 'ring-2 ring-offset-2 ring-offset-background scale-110')}
+   239→              style={{ background: c, boxShadow: settings.accent === c ? `0 0 0 2px ${c}` : undefined }}
+   240→            />
+   241→          ))}
+   242→          <Input
+   243→            value={settings.accent}
+   244→            onChange={(e) => {
+   245→              const v = e.target.value
+   246→              settings.set({ accent: v })
+   247→              if (/^#[0-9a-fA-F]{6}$/.test(v)) applyTheme(settings.themeId, v, settings.radius)
+   248→            }}
+   249→            placeholder="#F97316"
+   250→            className="w-28 h-7 text-xs font-mono"
+   251→          />
+   252→        </div>
+   253→
+   254→        <div className="grid sm:grid-cols-2 gap-4 mt-4">
+   255→          <div>
+   256→            <Label className="text-xs text-muted-foreground">Font Catatan</Label>
+   257→            <div className="flex gap-1.5 mt-2">
+   258→              {FONTS.map((f) => (
+   259→                <button
+   260→                  key={f.id}
+   261→                  onClick={() => settings.set({ noteFont: f.id })}
+   262→                  className={cn(
+   263→                    'flex-1 h-9 rounded-lg border text-xs font-semibold transition-all',
+   264→                    f.className,
+   265→                    settings.noteFont === f.id ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground',
+   266→                  )}
+   267→                >
+   268→                  {f.label.split(' ')[0]}
+   269→                </button>
+   270→              ))}
+   271→            </div>
+   272→          </div>
+   273→          <div>
+   274→            <Label className="text-xs text-muted-foreground">Kelengkungan Sudut</Label>
+   275→            <div className="flex items-center gap-3 mt-3">
+   276→              <Slider
+   277→                value={[settings.radius]}
+   278→                min={0.25} max={1.5} step={0.05}
+   279→                onValueChange={([v]) => { settings.set({ radius: v }); applyTheme(settings.themeId, settings.accent, v) }}
+   280→                className="flex-1"
+   281→              />
+   282→              <span className="text-xs font-mono text-muted-foreground w-10">{settings.radius.toFixed(2)}</span>
+   283→            </div>
+   284→          </div>
+   285→        </div>
+   286→      </section>
+   287→
+   288→      {/* ── Notifikasi & Suara ── */}
+   289→      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+   290→        <h2 className="font-bold flex items-center gap-2 mb-1">
+   291→          {settings.notifEnabled ? <Bell className="w-4 h-4 text-primary" /> : <BellOff className="w-4 h-4 text-muted-foreground" />}
+   292→          Notifikasi &amp; Suara
+   293→        </h2>
+   294→        <p className="text-xs text-muted-foreground mb-4">
+   295→          Pengingat berbunyi saat aplikasi terbuka (termasuk di latar tab aktif).
+   296→        </p>
+   297→
+   298→        <div className="flex items-center justify-between py-2 border-b border-border/60">
+   299→          <div>
+   300→            <p className="text-sm font-semibold">Aktifkan pengingat</p>
+   301→            <p className="text-xs text-muted-foreground">Periksa tenggat &amp; pengingat tiap 20 detik</p>
+   302→          </div>
+   303→          <Switch
+   304→            checked={settings.notifEnabled}
+   305→            onCheckedChange={(v) => settings.set({ notifEnabled: v })}
+   306→            aria-label="Aktifkan pengingat"
+   307→          />
+   308→        </div>
+   309→
+   310→        <div className="flex items-center justify-between py-2 border-b border-border/60 gap-3 flex-wrap">
+   311→          <div>
+   312→            <p className="text-sm font-semibold">Izin notifikasi sistem</p>
+   313→            <p className="text-xs text-muted-foreground">Notifikasi muncul bahkan saat tab lain aktif</p>
+   314→          </div>
+   315→          <div className="flex items-center gap-2">
+   316→            <Badge
+   317→              variant="outline"
+   318→              className={cn(
+   319→                'text-xs',
+   320→                notifPermission === 'granted' && 'border-emerald-500/50 text-emerald-500',
+   321→                notifPermission === 'denied' && 'border-red-500/50 text-red-500',
+   322→              )}
+   323→            >
+   324→              {notifPermission === 'granted' ? 'Diizinkan' : notifPermission === 'denied' ? 'Ditolak' : 'Belum diminta'}
+   325→            </Badge>
+   326→            {notifPermission !== 'granted' && notifPermission !== 'denied' && (
+   327→              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={requestPermission}>
+   328→                Minta izin
+   329→              </Button>
+   330→            )}
+   331→          </div>
+   332→        </div>
+   333→
+   334→        <div className="py-3 border-b border-border/60">
+   335→          <div className="flex items-center justify-between mb-2">
+   336→            <p className="text-sm font-semibold flex items-center gap-1.5">
+   337→              <Volume2 className="w-4 h-4 text-muted-foreground" /> Volume
+   338→            </p>
+   339→            <span className="text-xs font-mono text-muted-foreground">{Math.round(settings.notifVolume * 100)}%</span>
+   340→          </div>
+   341→          <Slider
+   342→            value={[settings.notifVolume]}
+   343→            min={0} max={1} step={0.05}
+   344→            onValueChange={([v]) => settings.set({ notifVolume: v })}
+   345→          />
+   346→        </div>
+   347→
+   348→        <div className="py-3 border-b border-border/60">
+   349→          <Label className="text-xs text-muted-foreground">Nada Notifikasi</Label>
+   350→          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+   351→            {SOUND_PRESETS.map((p) => (
+   352→              <button
+   353→                key={p.id}
+   354→                onClick={() => { settings.set({ soundPreset: p.id as SoundPresetId, useCustomSound: false }); playPreset(p.id as SoundPresetId, settings.notifVolume) }}
+   355→                className={cn(
+   356→                  'rounded-xl border p-2.5 text-left transition-all hover:-translate-y-0.5',
+   357→                  !settings.useCustomSound && settings.soundPreset === p.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border',
+   358→                )}
+   359→              >
+   360→                <p className="text-xs font-bold">{p.emoji} {p.name}</p>
+   361→                <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{p.desc}</p>
+   362→              </button>
+   363→            ))}
+   364→          </div>
+   365→        </div>
+   366→
+   367→        <div className="pt-3">
+   368→          <Label className="text-xs text-muted-foreground">Suara Kustom (MP3/OGG/WAV, maks 3MB)</Label>
+   369→          <div className="flex items-center gap-2 flex-wrap mt-2">
+   370→            <input
+   371→              ref={soundFileRef}
+   372→              type="file"
+   373→              accept="audio/*"
+   374→              className="hidden"
+   375→              onChange={(e) => {
+   376→                const f = e.target.files?.[0]
+   377→                if (f) void onUploadSound(f)
+   378→                e.target.value = ''
+   379→              }}
+   380→            />
+   381→            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => soundFileRef.current?.click()}>
+   382→              <Upload className="w-3.5 h-3.5" /> Unggah suara
+   383→            </Button>
+   384→            {hasCustomSound && (
+   385→              <>
+   386→                <Badge variant="outline" className="text-xs gap-1 max-w-44">
+   387→                  <span className="truncate">{customName || 'suara-kustom'}</span>
+   388→                </Badge>
+   389→                <Button
+   390→                  variant={settings.useCustomSound ? 'default' : 'outline'}
+   391→                  size="sm"
+   392→                  className="h-8 text-xs gap-1"
+   393→                  onClick={() => settings.set({ useCustomSound: !settings.useCustomSound })}
+   394→                >
+   395→                  {settings.useCustomSound ? <Check className="w-3.5 h-3.5" /> : null}
+   396→                  {settings.useCustomSound ? 'Dipakai' : 'Gunakan'}
+   397→                </Button>
+   398→                <Button variant="ghost" size="sm" className="h-8 text-xs text-destructive" onClick={removeCustomSound}>
+   399→                  <Trash2 className="w-3.5 h-3.5" />
+   400→                </Button>
+   401→              </>
+   402→            )}
+   403→            <div className="flex-1" />
+   404→            <Button size="sm" className="h-8 text-xs gap-1.5" onClick={testSound}>
+   405→              <Volume2 className="w-3.5 h-3.5" /> Uji suara
+   406→            </Button>
+   407→          </div>
+   408→        </div>
+   409→      </section>
+   410→
+   411→      {/* ── Cloud & Sinkronisasi ── */}
+   412→      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+   413→        <h2 className="font-bold flex items-center gap-2 mb-1">
+   414→          {cloudState === 'error' || cloudState === 'offline' ? (
+   415→            <CloudOff className="w-4 h-4 text-destructive" />
+   416→          ) : (
+   417→            <Cloud className={cn('w-4 h-4', cloudState === 'ok' ? 'text-emerald-500' : 'text-primary')} />
+   418→          )}
+   419→          Cloud &amp; Sinkronisasi
+   420→        </h2>
+   421→        <p className="text-xs text-muted-foreground mb-4">
+   422→          Hubungkan Supabase agar catatan &amp; tugas sinkron otomatis antara HP (APK) dan laptop (web).
+   423→        </p>
+   424→
+   425→        {/* Status */}
+   426→        <div className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-xl bg-muted/50 border border-border/60 mb-4">
+   427→          <div className="flex items-center gap-2 min-w-0">
+   428→            {cloudState === 'syncing' && <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />}
+   429→            {cloudState === 'ok' && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
+   430→            {(cloudState === 'error' || cloudState === 'offline') && <CloudOff className="w-4 h-4 text-destructive shrink-0" />}
+   431→            <div className="min-w-0">
+   432→              <p className="text-sm font-semibold truncate">
+   433→                {cloudEmail ?? 'Belum login ke cloud'}
+   434→              </p>
+   435→              <p className="text-xs text-muted-foreground truncate">
+   436→                {
+   437→                  cloudState === 'unconfigured' ? 'Supabase belum dihubungkan' :
+   438→                  cloudState === 'syncing' ? (cloudMsg || 'Menyinkronkan…') :
+   439→                  cloudState === 'ok' ? (cloudMsg || 'Semua data tersinkron') :
+   440→                  cloudState === 'offline' ? 'Tidak ada koneksi internet' :
+   441→                  cloudState === 'idle' ? (cloudMsg || 'Menunggu login') :
+   442→                  (cloudMsg || 'Terjadi galat sinkronisasi')
+   443→                }
+   444→              </p>
+   445→            </div>
+   446→          </div>
+   447→          {cloudEmail && (
+   448→            <Button
+   449→              variant="outline" size="sm" className="h-8 text-xs gap-1.5 shrink-0"
+   450→              onClick={() => { void syncNow().then((r) => r.ok ? toast.success(r.message) : toast.error(r.message)) }}
+   451→            >
+   452→              <RefreshCw className="w-3.5 h-3.5" /> Sinkron
+   453→            </Button>
+   454→          )}
+   455→        </div>
+   456→
+   457→        {/* Kredensial Supabase */}
+   458→        {!cloudEmail && (
+   459→          <div className="space-y-3">
+   460→            <div className="grid sm:grid-cols-2 gap-3">
+   461→              <div>
+   462→                <Label className="text-xs text-muted-foreground">Project URL</Label>
+   463→                <Input
+   464→                  value={settings.supabaseUrl}
+   465→                  onChange={(e) => settings.set({ supabaseUrl: e.target.value.trim() })}
+   466→                  onBlur={() => settings.set({ supabaseUrl: normalizeSupabaseUrl(settings.supabaseUrl) })}
+   467→                  placeholder="https://xxxx.supabase.co"
+   468→                  className="h-9 text-xs font-mono mt-1"
+   469→                  autoCapitalize="off" spellCheck={false}
+   470→                />
+   471→              </div>
+   472→              <div>
+   473→                <Label className="text-xs text-muted-foreground">Anon Key</Label>
+   474→                <Input
+   475→                  value={settings.supabaseAnonKey}
+   476→                  onChange={(e) => settings.set({ supabaseAnonKey: normalizeSupabaseKey(e.target.value) })}
+   477→                  onBlur={() => settings.set({ supabaseAnonKey: normalizeSupabaseKey(settings.supabaseAnonKey) })}
+   478→                  placeholder="eyJhbGciOi…"
+   479→                  className="h-9 text-xs font-mono mt-1"
+   480→                  autoCapitalize="off" spellCheck={false}
+   481→                />
+   482→              </div>
+   483→            </div>
+   484→            <p className="text-[11px] text-muted-foreground leading-relaxed">
+   485→              Tempel apa adanya — akhiran <span className="font-mono">/rest/v1</span> pada URL dan spasi pada key otomatis dibersihkan. Keduanya didapat dari Supabase → Project Settings → API. Disimpan hanya di perangkat ini.
+   486→            </p>
+   487→
+   488→            {/* Login OTP */}
+   489→            <div className="rounded-xl border border-border/60 p-3 space-y-2.5">
+   490→              <div className="flex gap-2">
+   491→                <div className="relative flex-1">
+   492→                  <Mail className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+   493→                  <Input
+   494→                    value={emailInput}
+   495→                    onChange={(e) => setEmailInput(e.target.value)}
+   496→                    placeholder="email@kamu.com"
+   497→                    type="email"
+   498→                    className="h-9 pl-8 text-sm"
+   499→                    disabled={!settings.supabaseUrl || !settings.supabaseAnonKey}
+   500→                  />
+   501→                </div>
+   502→                <Button
+   503→                  size="sm" variant="outline" className="h-9 text-xs shrink-0"
+   504→                  disabled={otpBusy || !settings.supabaseUrl || !settings.supabaseAnonKey}
+   505→                  onClick={sendCode}
+   506→                >
+   507→                  {otpBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+   508→                  Kirim kode
+   509→                </Button>
+   510→              </div>
+   511→              {otpSent && (
+   512→                <div className="flex gap-2">
+   513→                  <Input
+   514→                    value={otpInput}
+   515→                    onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+   516→                    placeholder="Kode 6 digit dari email"
+   517→                    inputMode="numeric"
+   518→                    className="h-9 text-sm font-mono tracking-[0.3em]"
+   519→                  />
+   520→                  <Button size="sm" className="h-9 text-xs shrink-0" disabled={otpBusy} onClick={verifyCode}>
+   521→                    {otpBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Verifikasi
+   522→                  </Button>
+   523→                </div>
+   524→              )}
+   525→              <p className="text-[11px] text-muted-foreground">
+   526→                Login tanpa sandi — kode dikirim Supabase ke emailmu. Data tiap pengguna terlindungi RLS.
+   527→              </p>
+   528→              <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
+   529→                Isi email seharusnya <b>kode 6 digit</b>. Kalau yang datang cuma link (atau linknya membuka situs lain): proyek Supabase baru mengunci edit template sampai SMTP kustom dipasang — ikuti PANDUAN bagian 4.5 (Brevo → template → Site URL). Tanpa SMTP pun bisa masuk: atur Site URL dulu, lalu <b>klik link</b> di email.
+   530→              </p>
+   531→            </div>
+   532→          </div>
+   533→        )}
+   534→
+   535→        {/* Sudah login */}
+   536→        {cloudEmail && (
+   537→          <div className="space-y-3">
+   538→            <div className="flex items-center justify-between py-2 border-b border-border/60">
+   539→              <div>
+   540→                <p className="text-sm font-semibold">Sinkron otomatis</p>
+   541→                <p className="text-xs text-muted-foreground">Tiap perubahan dikirim ±4 detik kemudian</p>
+   542→              </div>
+   543→              <Switch
+   544→                checked={settings.cloudAutoSync}
+   545→                onCheckedChange={(v) => { settings.set({ cloudAutoSync: v }); if (v) scheduleSync() }}
+   546→                aria-label="Sinkron otomatis"
+   547→              />
+   548→            </div>
+   549→            <div className="flex items-center justify-between gap-2 flex-wrap">
+   550→              <p className="text-xs text-muted-foreground">Data tersinkron dengan semua perangkat yang login email yang sama.</p>
+   551→              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5 text-destructive" onClick={logoutCloud}>
+   552→                <LogOut className="w-3.5 h-3.5" /> Keluar
+   553→              </Button>
+   554→            </div>
+   555→          </div>
+   556→        )}
+   557→      </section>
+   558→
+   559→      {/* ── Widget ── */}
+   560→      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+   561→        <h2 className="font-bold flex items-center gap-2 mb-1">
+   562→          <Smartphone className="w-4 h-4 text-primary" /> Widget HP
+   563→        </h2>
+   564→        <p className="text-xs text-muted-foreground mb-4">
+   565→          APK Android Noto membawa widget layar utama 2×2 — angka tugas aktif, progres, dan tombol tambah cepat.
+   566→          Widget berjalan <b>offline</b>: datanya diambil langsung dari aplikasi Noto di HP ini, jadi tidak perlu login cloud sama sekali.
+   567→          Buka aplikasinya sekali, widget otomatis terisi — dan warnanya selalu mengikuti tema yang kamu pakai di sini.
+   568→        </p>
+   569→      </section>
+   570→
+   571→      {/* ── Data ── */}
+   572→      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+   573→        <h2 className="font-bold flex items-center gap-2 mb-1">
+   574→          <Save className="w-4 h-4 text-primary" /> Data &amp; Cadangan
+   575→        </h2>
+   576→        <p className="text-xs text-muted-foreground mb-4">
+   577→          Semua data tersimpan di database. Ekspor rutin sebagai cadangan, atau pindahkan ke perangkat lain.
+   578→        </p>
+   579→        <div className="flex gap-2 flex-wrap">
+   580→          <input
+   581→            type="file" accept="application/json" className="hidden"
+   582→            id="import-file"
+   583→            onChange={(e) => {
+   584→              const f = e.target.files?.[0]
+   585→              if (f) void importData(f)
+   586→              e.target.value = ''
+   587→            }}
+   588→          />
+   589→          <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={exportData}>
+   590→            <Download className="w-3.5 h-3.5" /> Ekspor JSON
+   591→          </Button>
+   592→          <Button
+   593→            variant="outline" size="sm" className="text-xs gap-1.5"
+   594→            onClick={() => document.getElementById('import-file')?.click()}
+   595→          >
+   596→            <Upload className="w-3.5 h-3.5" /> Impor JSON
+   597→          </Button>
+   598→          <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-destructive hover:text-destructive" onClick={() => setResetOpen(true)}>
+   599→            <Trash2 className="w-3.5 h-3.5" /> Reset Tampilan
+   600→          </Button>
+   601→        </div>
+   602→      </section>
+   603→
+   604→      {/* ── Tentang ── */}
+   605→      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm flex items-center gap-4">
+   606→        { }
+   607→        <img src="/icons/logo-64.png" alt="Logo Noto" className="w-14 h-14 rounded-2xl" />
+   608→        <div className="flex-1">
+   609→          <p className="font-bold">Noto <span className="text-xs font-medium text-muted-foreground">v2.0</span></p>
+   610→          <p className="text-xs text-muted-foreground mt-0.5">
+   611→            Workspace pribadi: catatan Markdown, tugas, kanvas, APK Android dengan widget asli, dan sinkron cloud. Gratis selamanya, datamu milikmu.
+   612→          </p>
+   613→        </div>
+   614→        <Info className="w-4 h-4 text-muted-foreground shrink-0" />
+   615→      </section>
+   616→
+   617→      <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
+   618→        <AlertDialogContent>
+   619→          <AlertDialogHeader>
+   620→            <AlertDialogTitle>Reset pengaturan tampilan?</AlertDialogTitle>
+   621→            <AlertDialogDescription>
+   622→              Tema, aksen, dan preferensi suara kembali ke bawaan. Catatan &amp; tugas tidak terhapus.
+   623→            </AlertDialogDescription>
+   624→          </AlertDialogHeader>
+   625→          <AlertDialogFooter>
+   626→            <AlertDialogCancel>Batal</AlertDialogCancel>
+   627→            <AlertDialogAction onClick={() => { settings.reset(); toast.success('Tampilan direset') }}>
+   628→              Reset
+   629→            </AlertDialogAction>
+   630→          </AlertDialogFooter>
+   631→        </AlertDialogContent>
+   632→      </AlertDialog>
+   633→    </div>
+   634→  )
+   635→}
+   636→

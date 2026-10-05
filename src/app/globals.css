@@ -1,0 +1,434 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* Nilai bawaan = tema Noto Gelap (diganti dinamis oleh applyTheme) */
+:root {
+  --radius: 0.75rem;
+  --background: #101013;
+  --foreground: #EDEDF0;
+  --card: #17171B;
+  --card-foreground: #EDEDF0;
+  --popover: #1C1C21;
+  --popover-foreground: #EDEDF0;
+  --primary: #F97316;
+  --primary-foreground: #FFFFFF;
+  --secondary: #202026;
+  --secondary-foreground: #C9C9D1;
+  --muted: #1B1B20;
+  --muted-foreground: #9C9CA8;
+  --accent: #24242B;
+  --accent-foreground: #EDEDF0;
+  --destructive: #ef4444;
+  --border: #26262D;
+  --input: #2A2A32;
+  --ring: #F97316;
+  --chart-1: #F97316;
+  --chart-2: #34D399;
+  --chart-3: #F59E0B;
+  --chart-4: #EC4899;
+  --chart-5: #14B8A6;
+  --sidebar: #17171B;
+  --sidebar-foreground: #EDEDF0;
+  --sidebar-primary: #F97316;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #24242B;
+  --sidebar-accent-foreground: #EDEDF0;
+  --sidebar-border: #26262D;
+  --sidebar-ring: #F97316;
+  --canvas-dots: #2B2B34;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ── Kustom Noto ─────────────────────────────────────────────────── */
+
+html {
+  overscroll-behavior: none;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* Titik-titik latar kanvas */
+.canvas-dots {
+  background-image: radial-gradient(var(--canvas-dots) 1.6px, transparent 1.6px);
+  background-size: 26px 26px;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.28s ease-out both;
+}
+
+/* ── Layar pemuatan (splash) ─────────────────────────────────────── */
+
+#boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  background: var(--background);
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+#boot-splash.hide {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.splash-glow {
+  position: absolute;
+  width: 340px;
+  height: 340px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--primary) 22%, transparent) 0%,
+    transparent 65%
+  );
+  animation: splash-breathe 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.splash-logo {
+  width: 92px;
+  height: 92px;
+  object-fit: contain;
+  animation: splash-pop 0.9s cubic-bezier(0.22, 1.2, 0.36, 1) both,
+    splash-float 3.2s ease-in-out 0.9s infinite;
+  filter: drop-shadow(0 12px 32px color-mix(in srgb, var(--primary) 35%, transparent));
+}
+
+.splash-wordmark {
+  margin-top: 1.4rem;
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: 0.34em;
+  margin-right: -0.34em; /* kompensasi letter-spacing terakhir */
+  color: var(--foreground);
+  animation: fade-in 0.7s ease-out 0.35s both;
+}
+
+.splash-tagline {
+  margin-top: 0.45rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  animation: fade-in 0.7s ease-out 0.55s both;
+}
+
+.splash-track {
+  margin-top: 2rem;
+  width: 132px;
+  height: 4px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--muted);
+  animation: fade-in 0.7s ease-out 0.75s both;
+}
+.splash-bar {
+  width: 42%;
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  animation: splash-bar 1.15s ease-in-out infinite;
+}
+
+.splash-foot {
+  position: absolute;
+  bottom: max(1.4rem, env(safe-area-inset-bottom));
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+  animation: fade-in 1s ease-out 1s both;
+}
+
+@keyframes splash-pop {
+  0% {
+    transform: scale(0.55) rotate(-6deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.07) rotate(1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+@keyframes splash-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+@keyframes splash-breathe {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+@keyframes splash-bar {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
+
+/* ── Gaya Markdown (.md-body) ────────────────────────────────────── */
+
+.md-body {
+  font-size: 0.925rem;
+  line-height: 1.75;
+  word-break: break-word;
+}
+.md-body > :first-child {
+  margin-top: 0;
+}
+.md-body p {
+  margin: 0.5rem 0;
+}
+.md-body h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 1.3rem 0 0.6rem;
+}
+.md-body h2 {
+  font-size: 1.22rem;
+  font-weight: 700;
+  margin: 1.1rem 0 0.5rem;
+}
+.md-body h3 {
+  font-size: 1.06rem;
+  font-weight: 700;
+  margin: 1rem 0 0.4rem;
+}
+.md-body ul {
+  list-style: disc;
+  padding-left: 1.4rem;
+  margin: 0.5rem 0;
+}
+.md-body ol {
+  list-style: decimal;
+  padding-left: 1.4rem;
+  margin: 0.5rem 0;
+}
+.md-body ul.contains-task-list {
+  list-style: none;
+  padding-left: 0.25rem;
+}
+.md-body li {
+  margin: 0.2rem 0;
+}
+.md-body li.task-list-item {
+  list-style: none;
+}
+.md-body input[type="checkbox"] {
+  accent-color: var(--primary);
+  width: 1.05em;
+  height: 1.05em;
+  margin-right: 0.5em;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+.md-check {
+  cursor: pointer;
+}
+.md-body blockquote {
+  border-left: 3px solid var(--primary);
+  padding: 0.15rem 0 0.15rem 1rem;
+  margin: 0.75rem 0;
+  color: var(--muted-foreground);
+  font-style: italic;
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+.md-body code.md-inline-code {
+  background: var(--muted);
+  padding: 0.15em 0.4em;
+  border-radius: 0.35em;
+  font-size: 0.84em;
+  font-family: var(--font-mono), monospace;
+}
+.md-body .md-codeblock {
+  background: var(--muted);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  margin: 0.75rem 0;
+  border: 1px solid var(--border);
+}
+.md-body .md-pre {
+  background: var(--muted);
+  padding: 0.9rem;
+  border-radius: 0.75rem;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  margin: 0.75rem 0;
+}
+.md-body a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86em;
+}
+.md-body th,
+.md-body td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.65rem;
+  text-align: left;
+}
+.md-body th {
+  background: var(--muted);
+  font-weight: 600;
+}
+.md-body .md-table-wrap {
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.md-body img {
+  max-width: 100%;
+  border-radius: 0.75rem;
+}
+.md-body hr {
+  border-color: var(--border);
+  margin: 1.5rem 0;
+}
+
+/* Markdown ringkas untuk kartu kanvas */
+.md-compact {
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+.md-compact h1 {
+  font-size: 1.02rem;
+  margin: 0.35rem 0;
+}
+.md-compact h2 {
+  font-size: 0.92rem;
+  margin: 0.3rem 0;
+}
+.md-compact h3 {
+  font-size: 0.86rem;
+  margin: 0.3rem 0;
+}
+.md-compact p {
+  margin: 0.25rem 0;
+}
+.md-compact ul,
+.md-compact ol {
+  margin: 0.2rem 0;
+}
+.md-compact .md-codeblock,
+.md-compact .md-pre {
+  font-size: 0.68rem;
+  padding: 0.5rem;
+}
