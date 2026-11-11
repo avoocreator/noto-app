@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="@drawable/widget_bg">
+
+    <TextView android:id="@+id/w_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textColor="#2B2418" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+    <TextView android:id="@+id/w_sub" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textColor="#7A6F5C" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" />
+    <TextView android:id="@+id/w_l1" style="@style/NotoLine" />
+    <TextView android:id="@+id/w_l2" style="@style/NotoLine" />
+    <TextView android:id="@+id/w_l3" style="@style/NotoLine" />
+    <TextView android:id="@+id/w_l4" style="@style/NotoLine" />
+    <TextView android:id="@+id/w_l5" style="@style/NotoLine" />
+    <Space android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    <TextView android:id="@+id/w_add" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="＋ Catatan" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold"
+        android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="5dp" android:paddingBottom="5dp"
+        android:background="@drawable/widget_btn_bg" />
+</LinearLayout>

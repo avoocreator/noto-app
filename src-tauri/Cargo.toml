@@ -1,0 +1,21 @@
+[package]
+name = "noto"
+version = "3.0.0"
+description = "Noto — vault catatan Markdown + canvas"
+edition = "2021"
+
+[lib]
+name = "noto_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-persisted-scope = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
