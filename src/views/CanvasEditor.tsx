@@ -9,6 +9,11 @@ import { parseFrontmatter } from '../lib/frontmatter.ts';
 import { basename, isCanvasPath, isImagePath, isNotePath, stripExt } from '../lib/analyze.ts';
 import { MiniMd } from './MiniMd.tsx';
 import { ask } from '../ui/dialogs.tsx';
+import { useContextMenu, type MenuItem } from '../ui/ContextMenu.tsx';
+import { FormatBar } from '../ui/FormatBar.tsx';
+import { clipboardItems, formatMenu } from '../ui/formatMenu.ts';
+import { textareaTarget } from '../editor/formatTarget.ts';
+import { applyChanges, tableAt, tableTab } from '../lib/format.ts';
 
 interface View { x: number; y: number; k: number }
 const SIDES: Side[] = ['top', 'right', 'bottom', 'left'];
@@ -58,6 +63,13 @@ export function CanvasEditor({ path }: { path: string }) {
   const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
   const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [picker, setPicker] = useState(false);
+  const ctx = useContextMenu();
+  const [, setTick] = useState(0);
+  const selRef = useRef(sel);
+  const selEdgeRef = useRef(selEdge);
+  selRef.current = sel;
+  selEdgeRef.current = selEdge;
+  const clip = useRef<{ nodes: CanvasNode[]; edges: CanvasEdge[] } | null>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
   const drag = useRef<Drag | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -145,6 +157,14 @@ export function CanvasEditor({ path }: { path: string }) {
   const patchNode = (id: string, patch: Partial<CanvasNode>, pushUndo = true) =>
     apply({ ...dataRef.current, nodes: dataRef.current.nodes.map((n) => (n.id === id ? ({ ...n, ...patch } as CanvasNode) : n)) }, pushUndo);
 
+  /** Ketikan di kartu: tersimpan langsung, tapi seluruh sesi mengetik hanya jadi satu langkah undo. */
+  const editSnap = useRef<CanvasData | null>(null);
+  useEffect(() => { editSnap.current = editing ? dataRef.current : null; }, [editing]);
+  const typeEdit = (id: string, patch: Partial<CanvasNode>) => {
+    if (editSnap.current) { undo.current.push(editSnap.current); if (undo.current.length > 100) undo.current.shift(); redo.current = []; editSnap.current = null; }
+    patchNode(id, patch, false);
+  };
+
   const addNode = (n: CanvasNode, edit = false) => {
     apply({ ...dataRef.current, nodes: [...dataRef.current.nodes, n] }, true);
     setSel(new Set([n.id]));
@@ -155,6 +175,7 @@ export function CanvasEditor({ path }: { path: string }) {
 
   const removeSelected = () => {
     const d = dataRef.current;
+    const sel = selRef.current, selEdge = selEdgeRef.current;
     if (selEdge) { apply({ ...d, edges: d.edges.filter((e) => e.id !== selEdge) }, true); setSelEdge(null); return; }
     if (sel.size === 0) return;
     apply({
@@ -165,6 +186,7 @@ export function CanvasEditor({ path }: { path: string }) {
   };
   const duplicate = () => {
     const d = dataRef.current;
+    const sel = selRef.current;
     const map = new Map<string, string>();
     const copies = d.nodes.filter((n) => sel.has(n.id)).map((n) => { const id = newId(); map.set(n.id, id); return { ...n, id, x: n.x + 32, y: n.y + 32 } as CanvasNode; });
     const edges = d.edges.filter((e) => map.has(e.fromNode) && map.has(e.toNode)).map((e) => ({ ...e, id: newId(), fromNode: map.get(e.fromNode)!, toNode: map.get(e.toNode)! }));
@@ -173,8 +195,122 @@ export function CanvasEditor({ path }: { path: string }) {
   };
   const setColor = (c?: string) => {
     const d = dataRef.current;
+    const sel = selRef.current, selEdge = selEdgeRef.current;
     if (selEdge) apply({ ...d, edges: d.edges.map((e) => (e.id === selEdge ? { ...e, color: c } : e)) }, true);
     else apply({ ...d, nodes: d.nodes.map((n) => (sel.has(n.id) ? ({ ...n, color: c } as CanvasNode) : n)) }, true);
+  };
+
+  /** Salin node terpilih (beserta garis di antaranya) ke papan klip internal canvas. */
+  const copySel = () => {
+    const d = dataRef.current;
+    const ids = selRef.current;
+    if (!ids.size) return false;
+    clip.current = { nodes: d.nodes.filter((n) => ids.has(n.id)), edges: d.edges.filter((e) => ids.has(e.fromNode) && ids.has(e.toNode)) };
+    toast(`${clip.current.nodes.length} kartu disalin`, 'ok');
+    return true;
+  };
+  const pasteAt = (at?: { x: number; y: number }) => {
+    const c = clip.current;
+    if (!c || !c.nodes.length) return;
+    const d = dataRef.current;
+    const b = bounds(c.nodes)!;
+    const dx = at ? at.x - b.x : 36, dy = at ? at.y - b.y : 36;
+    const map = new Map<string, string>();
+    const copies = c.nodes.map((n) => { const id = newId(); map.set(n.id, id); return { ...n, id, x: Math.round(n.x + dx), y: Math.round(n.y + dy) } as CanvasNode; });
+    const edges = c.edges.map((e) => ({ ...e, id: newId(), fromNode: map.get(e.fromNode)!, toNode: map.get(e.toNode)! }));
+    apply({ nodes: [...d.nodes, ...copies], edges: [...d.edges, ...edges] }, true);
+    setSel(new Set(copies.map((n) => n.id)));
+    setSelEdge(null);
+  };
+  const reorder = (front: boolean) => {
+    const d = dataRef.current;
+    const ids = selRef.current;
+    const picked = d.nodes.filter((n) => ids.has(n.id));
+    const rest = d.nodes.filter((n) => !ids.has(n.id));
+    apply({ ...d, nodes: front ? [...rest, ...picked] : [...picked, ...rest] }, true);
+  };
+  const patchEdge = (id: string, patch: Partial<CanvasEdge>) => apply({ ...dataRef.current, edges: dataRef.current.edges.map((e) => (e.id === id ? { ...e, ...patch } : e)) }, true);
+  const editEdgeLabel = (id: string) => {
+    const ed = dataRef.current.edges.find((x) => x.id === id);
+    if (!ed) return;
+    void ask({ title: 'Label garis', initial: ed.label ?? '', confirm: 'Simpan' }).then((v) => { if (v !== null) patchEdge(id, { label: v || undefined }); });
+  };
+
+  const colorSwatch = (onPick: (v: string | null) => void): MenuItem => ({
+    label: 'Warna', icon: 'sparkle',
+    swatches: [...COLORS.map((c) => ({ value: c, label: `Warna ${c}`, color: `var(--c-${c})` })), { value: null, label: 'Tanpa warna' }],
+    onPick,
+  });
+
+  /** Klik kanan ala Word: teks di kartu → menu format; kartu, garis, atau latar → menu masing-masing. */
+  const onContextMenu = (e: React.MouseEvent) => {
+    const t = e.target as HTMLElement;
+    if (t.closest('.cv-toolbar, .cv-mini, .cv-picker')) return;
+    e.preventDefault();
+    const nodeEl = t.closest('[data-node-id]') as HTMLElement | null;
+    const edgeEl = t.closest('[data-edge-id]') as HTMLElement | null;
+    const w = toWorld(e.clientX, e.clientY);
+    const ta = t.closest('textarea.cv-edit') as HTMLTextAreaElement | null;
+
+    if (ta && nodeEl) {
+      const id = nodeEl.dataset.nodeId!;
+      const tg = textareaTarget(ta, (v) => typeEdit(id, { text: v }));
+      ctx.open(e.clientX, e.clientY, [
+        ...clipboardItems(tg, toast, () => { ta.focus(); ta.select(); }),
+        ...formatMenu((op) => { tg.run(op); }, tg.inTable()).map((it, i) => (i === 0 ? { ...it, sep: true } : it)),
+      ]);
+      return;
+    }
+    if (edgeEl) {
+      const id = edgeEl.dataset.edgeId!;
+      selEdgeRef.current = id; selRef.current = new Set();
+      setSelEdge(id); setSel(new Set());
+      ctx.open(e.clientX, e.clientY, [
+        { label: 'Label…', icon: 'edit', run: () => editEdgeLabel(id) },
+        {
+          label: 'Panah', icon: 'swap',
+          children: [
+            { label: 'Satu arah  →', run: () => patchEdge(id, { fromEnd: 'none', toEnd: 'arrow' }) },
+            { label: 'Dua arah  ↔', run: () => patchEdge(id, { fromEnd: 'arrow', toEnd: 'arrow' }) },
+            { label: 'Tanpa panah  —', run: () => patchEdge(id, { fromEnd: 'none', toEnd: 'none' }) },
+          ],
+        },
+        colorSwatch((v) => setColor(v ?? undefined)),
+        { label: 'Hapus garis', icon: 'trash', danger: true, sep: true, run: removeSelected },
+      ]);
+      return;
+    }
+    if (nodeEl) {
+      const n = dataRef.current.nodes.find((x) => x.id === nodeEl.dataset.nodeId);
+      if (!n) return;
+      if (!selRef.current.has(n.id)) { selRef.current = new Set([n.id]); setSel(new Set([n.id])); }
+      selEdgeRef.current = null; setSelEdge(null);
+      ctx.open(e.clientX, e.clientY, [
+        ...(n.type === 'text' || n.type === 'group' ? [{ label: 'Edit teks', icon: 'edit' as const, run: () => setEditing(n.id) }] : []),
+        ...(n.type === 'file' ? [{ label: 'Buka', icon: 'external' as const, run: () => openPath(n.file) }] : []),
+        ...(n.type === 'link' ? [
+          { label: 'Buka tautan', icon: 'external' as const, run: () => window.open(n.url, '_blank', 'noopener') },
+          { label: 'Ubah URL…', icon: 'edit' as const, run: () => void ask({ title: 'Ubah URL', initial: n.url, confirm: 'Simpan' }).then((u) => { if (u) patchNode(n.id, { url: /^https?:/i.test(u) ? u : 'https://' + u } as Partial<CanvasNode>); }) },
+        ] : []),
+        colorSwatch((v) => setColor(v ?? undefined)),
+        { label: 'Salin', icon: 'copy', hint: 'Ctrl+C', sep: true, run: () => void copySel() },
+        { label: 'Potong', icon: 'scissors', hint: 'Ctrl+X', run: () => { if (copySel()) removeSelected(); } },
+        { label: 'Gandakan', icon: 'copy', hint: 'Ctrl+D', run: duplicate },
+        { label: 'Bawa ke depan', icon: 'layers', sep: true, run: () => reorder(true) },
+        { label: 'Kirim ke belakang', icon: 'layers', run: () => reorder(false) },
+        { label: selRef.current.size > 1 ? `Hapus ${selRef.current.size} kartu` : 'Hapus', icon: 'trash', danger: true, sep: true, run: removeSelected },
+      ]);
+      return;
+    }
+    ctx.open(e.clientX, e.clientY, [
+      { label: 'Kartu teks di sini', icon: 'text', run: () => addNode(newTextNode(Math.round(w.x - 130), Math.round(w.y - 40)), true) },
+      { label: 'Sisipkan catatan…', icon: 'notes', run: () => setPicker(true) },
+      { label: 'Tautan web…', icon: 'link', run: async () => { const u = await ask({ title: 'Tautan web', label: 'URL', placeholder: 'https://…', confirm: 'Tambah' }); if (u) addNode(newLinkNode(Math.round(w.x - 150), Math.round(w.y - 60), /^https?:/i.test(u) ? u : 'https://' + u)); } },
+      { label: 'Grup di sini', icon: 'group', run: () => addNode(newGroupNode(Math.round(w.x - 260), Math.round(w.y - 180))) },
+      { label: 'Tempel', icon: 'paste', hint: 'Ctrl+V', sep: true, disabled: !clip.current, run: () => pasteAt(w) },
+      { label: 'Pilih semua', icon: 'text', hint: 'Ctrl+A', run: () => setSel(new Set(dataRef.current.nodes.map((n) => n.id))) },
+      { label: 'Pas ke layar', icon: 'fit', hint: 'Shift+1', run: () => fit() },
+    ]);
   };
 
   const openLink = (target: string) => {
@@ -184,6 +320,7 @@ export function CanvasEditor({ path }: { path: string }) {
 
   /* ── pointer ───────────────────────────────────────────────────────────────────── */
   const onPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return; // klik kanan/tengah ditangani onContextMenu
     const t = e.target as HTMLElement;
     if (t.closest('textarea, input, .cv-toolbar, .cv-mini, .cv-picker, a')) return;
     wrap.current!.setPointerCapture(e.pointerId);
@@ -365,6 +502,9 @@ export function CanvasEditor({ path }: { path: string }) {
       else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); doRedo(); }
       else if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); setSel(new Set(dataRef.current.nodes.map((n) => n.id))); }
       else if (mod && e.key.toLowerCase() === 'd' && sel.size) { e.preventDefault(); duplicate(); }
+      else if (mod && e.key.toLowerCase() === 'c' && sel.size) { e.preventDefault(); copySel(); }
+      else if (mod && e.key.toLowerCase() === 'x' && sel.size) { e.preventDefault(); if (copySel()) removeSelected(); }
+      else if (mod && e.key.toLowerCase() === 'v' && clip.current) { e.preventDefault(); pasteAt(); }
       else if (e.key === 'Escape') { setSel(new Set()); setSelEdge(null); setPicker(false); }
       else if (e.key === '+' || e.key === '=') zoomAt(el.getBoundingClientRect().left + size.w / 2, el.getBoundingClientRect().top + size.h / 2, 1.2);
       else if (e.key === '-') zoomAt(el.getBoundingClientRect().left + size.w / 2, el.getBoundingClientRect().top + size.h / 2, 1 / 1.2);
@@ -396,6 +536,8 @@ export function CanvasEditor({ path }: { path: string }) {
   };
 
   /* ── render ────────────────────────────────────────────────────────────────────── */
+  const editNode = editing ? data.nodes.find((n) => n.id === editing) : undefined;
+  const taEl = editNode?.type === 'text' ? (wrap.current?.querySelector('textarea.cv-edit') as HTMLTextAreaElement | null) : null;
   const nodes = useMemo(() => [...data.nodes].sort((a, b) => Number(b.type === 'group') - Number(a.type === 'group')), [data.nodes]);
   const byId = useMemo(() => new Map(data.nodes.map((n) => [n.id, n])), [data.nodes]);
   const selNodes = data.nodes.filter((n) => sel.has(n.id));
@@ -440,6 +582,7 @@ export function CanvasEditor({ path }: { path: string }) {
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => void onDrop(e)}
       style={{ backgroundSize: `${24 * view.k}px ${24 * view.k}px`, backgroundPosition: `${view.x}px ${view.y}px` }}
@@ -459,8 +602,9 @@ export function CanvasEditor({ path }: { path: string }) {
             selected={sel.has(n.id)}
             single={selBox?.id === n.id}
             editing={editing === n.id}
-            onEdit={(v) => patchNode(n.id, n.type === 'group' ? ({ label: v } as Partial<CanvasNode>) : ({ text: v } as Partial<CanvasNode>))}
+            onEdit={(v) => typeEdit(n.id, n.type === 'group' ? ({ label: v } as Partial<CanvasNode>) : ({ text: v } as Partial<CanvasNode>))}
             onStopEdit={() => setEditing(null)}
+            onSel={() => setTick((v) => v + 1)}
             onLink={openLink}
           />
         ))}
@@ -505,15 +649,26 @@ export function CanvasEditor({ path }: { path: string }) {
         />
       )}
 
+      {editNode?.type === 'text' && (
+        <div className="cv-toolbar cv-format" role="toolbar" aria-label="Format teks kartu" onPointerDown={(e) => e.stopPropagation()}>
+          <FormatBar
+            run={(op) => { const ta = wrap.current?.querySelector('textarea.cv-edit') as HTMLTextAreaElement | null; if (ta) textareaTarget(ta, (v) => typeEdit(editNode.id, { text: v })).run(op); }}
+            inTable={!!taEl && !!tableAt(taEl.value, taEl.selectionStart)}
+          />
+        </div>
+      )}
+
+      {ctx.element}
+
       <Minimap nodes={data.nodes} view={view} size={size} onJump={(x, y) => setView({ ...view, x: size.w / 2 - x * view.k, y: size.h / 2 - y * view.k })} />
     </div>
   );
 }
 
 /* ── satu node ─────────────────────────────────────────────────────────────────────── */
-function NodeView({ n, selected, single, editing, onEdit, onStopEdit, onLink }: {
+function NodeView({ n, selected, single, editing, onEdit, onStopEdit, onSel, onLink }: {
   n: CanvasNode; selected: boolean; single: boolean; editing: boolean;
-  onEdit: (v: string) => void; onStopEdit: () => void; onLink: (t: string) => void;
+  onEdit: (v: string) => void; onStopEdit: () => void; onSel: () => void; onLink: (t: string) => void;
 }) {
   const vault = useVault()!;
   const style: React.CSSProperties = { left: n.x, top: n.y, width: n.width, height: n.height, ...nodeColor(n.color) };
@@ -525,9 +680,31 @@ function NodeView({ n, selected, single, editing, onEdit, onStopEdit, onLink }: 
       <textarea
         className="cv-edit"
         autoFocus
-        defaultValue={n.text}
-        onBlur={(e) => { onEdit(e.target.value); onStopEdit(); }}
-        onKeyDown={(e) => { if (e.key === 'Escape') (e.target as HTMLTextAreaElement).blur(); }}
+        value={n.text}
+        // simpan setiap ketikan: kalau hanya saat blur, klik latar membongkar textarea sebelum blur terkirim dan isinya hilang
+        onChange={(e) => onEdit(e.target.value)}
+        onFocus={(e) => { const el = e.currentTarget; el.setSelectionRange(el.value.length, el.value.length); onSel(); }}
+        onSelect={onSel}
+        onBlur={(e) => { if ((e.relatedTarget as HTMLElement | null)?.closest('.cv-format')) return; onStopEdit(); }}
+        onKeyDown={(e) => {
+          const ta = e.currentTarget;
+          if (e.key === 'Escape') { ta.blur(); return; }
+          const mod = e.ctrlKey || e.metaKey;
+          let op: string | null = null;
+          if (mod && !e.altKey) {
+            const k = e.key.toLowerCase();
+            if (k === 'b') op = 'bold'; else if (k === 'i') op = 'italic'; else if (k === 'u') op = 'underline'; else if (k === 'e') op = 'code';
+            else if (e.shiftKey && k === 'x') op = 'strike'; else if (e.shiftKey && k === 'h') op = 'hl:#ffe066';
+            else if (e.shiftKey && e.code === 'Digit7') op = 'number'; else if (e.shiftKey && e.code === 'Digit8') op = 'bullet';
+          } else if (mod && e.altKey) {
+            if (e.code === 'KeyF') op = 'footnote'; else if (/^Digit[0-3]$/.test(e.code)) op = 'h:' + e.code.slice(5);
+          }
+          if (op) { e.preventDefault(); textareaTarget(ta, onEdit).run(op); return; }
+          if (e.key === 'Tab' && tableAt(ta.value, ta.selectionStart)) {
+            const r = tableTab(ta.value, ta.selectionStart, e.shiftKey ? -1 : 1);
+            if (r) { e.preventDefault(); const next = applyChanges(ta.value, r.changes); onEdit(next); requestAnimationFrame(() => ta.setSelectionRange(r.from, r.to)); }
+          }
+        }}
         placeholder="Tulis sesuatu…"
       />
     ) : (
@@ -545,7 +722,7 @@ function NodeView({ n, selected, single, editing, onEdit, onStopEdit, onLink }: 
     );
   } else {
     body = editing ? (
-      <input className="cv-group-edit" autoFocus defaultValue={n.label ?? ''} onBlur={(e) => { onEdit(e.target.value); onStopEdit(); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }} />
+      <input className="cv-group-edit" autoFocus value={n.label ?? ''} onChange={(e) => onEdit(e.target.value)} onBlur={() => onStopEdit()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }} />
     ) : <span className="cv-group-label">{n.label || 'Grup'}</span>;
   }
 

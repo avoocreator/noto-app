@@ -4,7 +4,8 @@ import { Icon, type IconName } from './Icon.tsx';
 import { useApp, useVault } from '../store.ts';
 import { useContextMenu, type MenuItem } from './ContextMenu.tsx';
 import { basename, isCanvasPath, isImagePath, isNotePath, stripExt } from '../lib/analyze.ts';
-import { deleteEntry, moveEntry, newCanvas, newFolder, newNote, renameEntry, renameFolderAction } from '../actions.ts';
+import { changeIcon, copyText, deleteEntry, duplicateEntry, moveEntry, newCanvas, newFolder, newNote, renameEntry, renameFolderAction, revealInExplorer } from '../actions.ts';
+import { EntryIcon } from './IconPicker.tsx';
 
 interface TNode { name: string; path: string; dir: boolean; children: TNode[] }
 
@@ -66,22 +67,35 @@ export function FileTree() {
     try { localStorage.setItem(EXPANDED, JSON.stringify([...n])); } catch { /* abaikan */ }
   };
 
-  const itemsFor = (n: TNode): MenuItem[] =>
-    n.dir
-      ? [
-          { label: 'Catatan baru di sini', icon: 'plus', run: () => void newNote(n.path) },
-          { label: 'Canvas baru di sini', icon: 'canvas', run: () => void newCanvas(n.path) },
-          { label: 'Folder baru', icon: 'folder', run: () => void newFolder(n.path) },
-          { label: 'Ganti nama', icon: 'edit', sep: true, run: () => void renameFolderAction(n.path) },
-          { label: 'Hapus folder', icon: 'trash', danger: true, run: () => void deleteEntry(n.path, true) },
-        ]
-      : [
-          { label: 'Buka', icon: 'file', run: () => openPath(n.path) },
-          ...(isNotePath(n.path) ? [{ label: vault.config.pinned.includes(n.path) ? 'Lepas sematan' : 'Sematkan', icon: 'pin' as IconName, run: () => void vault.togglePin(n.path) }] : []),
-          ...(isNotePath(n.path) ? [{ label: 'Tampilkan di widget', icon: 'sticky' as IconName, run: () => void vault.setConfig({ widgetPath: n.path }) }] : []),
-          { label: 'Ganti nama', icon: 'edit', sep: true, run: () => void renameEntry(n.path) },
-          { label: 'Hapus', icon: 'trash', danger: true, run: () => void deleteEntry(n.path) },
-        ];
+  const desktop = vault.fs.kind === 'tauri';
+  const itemsFor = (n: TNode): MenuItem[] => {
+    const reveal: MenuItem[] = desktop ? [{ label: 'Tampilkan di File Explorer', icon: 'folder', run: () => void revealInExplorer(n.path) }] : [];
+    if (n.dir) {
+      return [
+        { label: 'Catatan baru di sini', icon: 'plus', run: () => void newNote(n.path) },
+        { label: 'Canvas baru di sini', icon: 'canvas', run: () => void newCanvas(n.path) },
+        { label: 'Folder baru', icon: 'folder', run: () => void newFolder(n.path) },
+        { label: 'Ganti nama', icon: 'edit', hint: 'F2', sep: true, run: () => void renameFolderAction(n.path) },
+        { label: 'Ganti ikon…', icon: 'smile', run: () => void changeIcon(n.path) },
+        { label: 'Salin path', icon: 'copy', sep: true, run: () => void copyText(n.path, 'Path') },
+        ...reveal,
+        { label: 'Hapus folder', icon: 'trash', danger: true, sep: true, hint: 'Del', run: () => void deleteEntry(n.path, true) },
+      ];
+    }
+    const note = isNotePath(n.path);
+    return [
+      { label: 'Buka', icon: 'file', run: () => openPath(n.path) },
+      ...(note ? [{ label: vault.config.pinned.includes(n.path) ? 'Lepas sematan' : 'Sematkan', icon: 'pin' as IconName, run: () => void vault.togglePin(n.path) }] : []),
+      ...(note ? [{ label: 'Tampilkan di widget', icon: 'sticky' as IconName, run: () => void vault.setConfig({ widgetPath: n.path }) }] : []),
+      { label: 'Ganti nama', icon: 'edit', hint: 'F2', sep: true, run: () => void renameEntry(n.path) },
+      { label: 'Ganti ikon…', icon: 'smile', run: () => void changeIcon(n.path) },
+      { label: 'Gandakan', icon: 'copy', run: () => void duplicateEntry(n.path) },
+      ...(note ? [{ label: 'Salin tautan [[…]]', icon: 'link' as IconName, sep: true, run: () => void copyText(`[[${stripExt(basename(n.path))}]]`, 'Tautan') }] : []),
+      { label: 'Salin path', icon: 'copy', sep: !note, run: () => void copyText(n.path, 'Path') },
+      ...reveal,
+      { label: 'Hapus', icon: 'trash', danger: true, sep: true, hint: 'Del', run: () => void deleteEntry(n.path) },
+    ];
+  };
 
   const row = (n: TNode, depth: number) => {
     const open = expanded.has(n.path);
@@ -104,12 +118,16 @@ export function FileTree() {
           role="treeitem"
           aria-expanded={n.dir ? open : undefined}
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); n.dir ? toggle(n.path) : openPath(n.path); } }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); n.dir ? toggle(n.path) : openPath(n.path); }
+            else if (e.key === 'F2') { e.preventDefault(); void (n.dir ? renameFolderAction(n.path) : renameEntry(n.path)); }
+            else if (e.key === 'Delete') { e.preventDefault(); void deleteEntry(n.path, n.dir); }
+          }}
         >
           {n.dir ? (
             <motion.span animate={{ rotate: open ? 90 : 0 }} transition={{ duration: 0.15 }} className="tree-chev"><Icon name="chevR" size={14} /></motion.span>
           ) : <span className="tree-chev" />}
-          <Icon name={n.dir ? (open ? 'folderOpen' : 'folder') : iconFor(n.path)} size={16} />
+          <EntryIcon path={n.path} fallback={n.dir ? (open ? 'folderOpen' : 'folder') : iconFor(n.path)} size={16} />
           <span className="tree-name">{n.dir ? n.name : isNotePath(n.path) || isCanvasPath(n.path) ? stripExt(n.name) : n.name}</span>
           {!n.dir && isCanvasPath(n.path) && <span className="tree-tag">canvas</span>}
           <button

@@ -1,4 +1,9 @@
 import { useEffect, useRef } from 'react';
+import { useContextMenu } from '../ui/ContextMenu.tsx';
+import { clipboardItems, formatMenu } from '../ui/formatMenu.ts';
+import { cmTarget } from './formatTarget.ts';
+import { lookStyle, useLook } from './look.ts';
+import { isTableLine } from '../lib/format.ts';
 import { Compartment, EditorState } from '@codemirror/state';
 import { drawSelection, EditorView, keymap, placeholder } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
@@ -14,11 +19,15 @@ interface Props {
   path: string;
   mode: 'live' | 'source';
   focusOnMount?: boolean;
+  /** dipanggil saat EditorView dibuat/dibuang, agar toolbar bisa menjalankan perintah */
+  onView?: (v: EditorView | null) => void;
+  /** dipanggil saat seleksi/isi berubah (untuk status toolbar, mis. kursor di dalam tabel) */
+  onSelection?: (inTable: boolean) => void;
 }
 
 const SAVE_DELAY = 400;
 
-export function NoteEditor({ path, mode, focusOnMount }: Props) {
+export function NoteEditor({ path, mode, focusOnMount, onView, onSelection }: Props) {
   const vault = useApp((s) => s.vault)!;
   const openPath = useApp((s) => s.openPath);
   const parent = useRef<HTMLDivElement>(null);
@@ -28,6 +37,11 @@ export function NoteEditor({ path, mode, focusOnMount }: Props) {
   const timer = useRef<number | undefined>(undefined);
   const pendingLine = useApp((s) => s.pendingLine);
   const clearPendingLine = useApp((s) => s.clearPendingLine);
+  const toast = useApp((s) => s.toast);
+  const ctx = useContextMenu();
+  const look = useLook();
+  const cbs = useRef({ onView, onSelection });
+  cbs.current = { onView, onSelection };
 
   useEffect(() => {
     if (!parent.current) return;
@@ -99,6 +113,7 @@ export function NoteEditor({ path, mode, focusOnMount }: Props) {
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
         EditorView.updateListener.of((u) => {
+          if (u.docChanged || u.selectionSet) cbs.current.onSelection?.(isTableLine(u.state.doc.lineAt(u.state.selection.main.head).text));
           if (!u.docChanged) return;
           if (timer.current !== undefined) window.clearTimeout(timer.current);
           timer.current = window.setTimeout(flush, SAVE_DELAY);
@@ -124,6 +139,7 @@ export function NoteEditor({ path, mode, focusOnMount }: Props) {
 
     const view = new EditorView({ state, parent: parent.current });
     viewRef.current = view;
+    cbs.current.onView?.(view);
     if (focusOnMount) view.focus();
 
     // perubahan dari luar (sync, Obsidian, restore versi)
@@ -148,6 +164,7 @@ export function NoteEditor({ path, mode, focusOnMount }: Props) {
       view.contentDOM.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('pagehide', flush);
+      cbs.current.onView?.(null);
       view.destroy();
       viewRef.current = null;
     };
@@ -167,5 +184,25 @@ export function NoteEditor({ path, mode, focusOnMount }: Props) {
     clearPendingLine();
   }, [pendingLine, path, clearPendingLine]);
 
-  return <div className={`editor-host mode-${mode}`} ref={parent} />;
+  const openMenu = (e: React.MouseEvent) => {
+    const view = viewRef.current;
+    if (!view) return;
+    e.preventDefault();
+    // klik kanan di luar seleksi → pindahkan kursor ke sana (seperti Word)
+    const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+    const sel = view.state.selection.main;
+    if (pos !== null && (pos < sel.from || pos > sel.to)) view.dispatch({ selection: { anchor: pos } });
+    const t = cmTarget(view);
+    ctx.open(e.clientX, e.clientY, [
+      ...clipboardItems(t, toast, () => { view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } }); view.focus(); }),
+      ...formatMenu((op) => { t.run(op); }, t.inTable()).map((it, i) => (i === 0 ? { ...it, sep: true } : it)),
+    ]);
+  };
+
+  return (
+    <>
+      <div className={`editor-host mode-${mode}`} ref={parent} style={lookStyle(look)} onContextMenu={openMenu} />
+      {ctx.element}
+    </>
+  );
 }

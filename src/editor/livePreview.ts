@@ -1,6 +1,8 @@
-import { Facet, type Extension, type Range } from '@codemirror/state';
+import { EditorSelection, Facet, StateField, type EditorState, type Extension, type Range } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { isImagePath } from '../lib/analyze.ts';
+import { cellPos, footnoteIndex, isTableLine, parseTable } from '../lib/format.ts';
+import { inlineToHtml } from '../lib/inlineHtml.ts';
 
 export interface PreviewEnv {
   resolve(target: string): string | null;
@@ -85,6 +87,97 @@ class EmbedChip extends WidgetType {
   }
 }
 
+
+/* ── tabel, catatan kaki ───────────────────────────────────────────────────────────────── */
+const fnCache = new WeakMap<object, Map<string, number>>();
+function fnIndex(state: EditorState): Map<string, number> {
+  let m = fnCache.get(state.doc);
+  if (!m) { m = footnoteIndex(state.doc.toString()); fnCache.set(state.doc, m); }
+  return m;
+}
+
+class FootnoteRefWidget extends WidgetType {
+  readonly id: string;
+  readonly label: string;
+  constructor(id: string, label: string) { super(); this.id = id; this.label = label; }
+  eq(o: FootnoteRefWidget) { return o.id === this.id && o.label === this.label; }
+  toDOM() { const s = document.createElement('sup'); s.className = 'cm-fn-ref'; s.dataset.fn = this.id; s.title = 'Ke catatan kaki'; s.textContent = this.label; return s; }
+  ignoreEvent() { return false; }
+}
+class FootnoteLabelWidget extends WidgetType {
+  readonly label: string;
+  constructor(label: string) { super(); this.label = label; }
+  eq(o: FootnoteLabelWidget) { return o.label === this.label; }
+  toDOM() { const s = document.createElement('span'); s.className = 'cm-fn-label'; s.textContent = this.label + '.'; return s; }
+}
+
+class TableWidget extends WidgetType {
+  readonly src: string;
+  readonly fns: string;
+  private fnMap: Map<string, number>;
+  constructor(src: string, fnMap: Map<string, number>) { super(); this.src = src; this.fnMap = fnMap; this.fns = [...fnMap].join(','); }
+  eq(o: TableWidget) { return o.src === this.src && o.fns === this.fns; }
+  toDOM() {
+    const t = parseTable(this.src.split('\n'));
+    const wrap = document.createElement('div');
+    wrap.className = 'cm-table-wrap';
+    if (!t) { wrap.textContent = this.src; return wrap; }
+    const table = document.createElement('table');
+    table.className = 'cm-table';
+    const mkRow = (cells: string[], tag: 'th' | 'td', r: number) => {
+      const tr = document.createElement('tr');
+      cells.forEach((c, i) => {
+        const td = document.createElement(tag);
+        td.style.textAlign = t.aligns[i];
+        td.dataset.r = String(r); td.dataset.c = String(i);
+        td.innerHTML = inlineToHtml(c, { footnotes: this.fnMap }) || '&nbsp;';
+        tr.appendChild(td);
+      });
+      return tr;
+    };
+    const head = document.createElement('thead'); head.appendChild(mkRow(t.cells[0], 'th', 0));
+    const body = document.createElement('tbody'); t.cells.slice(1).forEach((r, i) => body.appendChild(mkRow(r, 'td', i + 1)));
+    table.append(head, body);
+    wrap.appendChild(table);
+    return wrap;
+  }
+  ignoreEvent() { return false; }
+}
+
+/** Tabel yang kursornya tidak di dalamnya digambar sebagai tabel sungguhan; klik → kembali ke teks sumber. */
+function tableDecos(state: EditorState): DecorationSet {
+  const out: Range<Decoration>[] = [];
+  const doc = state.doc;
+  const fns = fnIndex(state);
+  let fence = false;
+  let inFm = false;
+  let n = 1;
+  while (n <= doc.lines) {
+    const t = doc.line(n).text;
+    if (n === 1 && /^---\s*$/.test(t)) { inFm = true; n++; continue; }
+    if (inFm) { if (/^---\s*$/.test(t)) inFm = false; n++; continue; }
+    if (/^\s*(```|~~~)/.test(t)) { fence = !fence; n++; continue; }
+    if (fence || !isTableLine(t)) { n++; continue; }
+    let e = n;
+    while (e < doc.lines && isTableLine(doc.line(e + 1).text)) e++;
+    const from = doc.line(n).from, to = doc.line(e).to;
+    const lines: string[] = [];
+    for (let i = n; i <= e; i++) lines.push(doc.line(i).text);
+    if (parseTable(lines)) {
+      const touched = state.selection.ranges.some((r) => r.from <= to && r.to >= from);
+      if (!touched) out.push(Decoration.replace({ widget: new TableWidget(lines.join('\n'), fns), block: true }).range(from, to));
+    }
+    n = e + 1;
+  }
+  return Decoration.set(out, true);
+}
+
+const tableField = StateField.define<DecorationSet>({
+  create: tableDecos,
+  update(deco, tr) { return tr.docChanged || tr.selection ? tableDecos(tr.state) : deco; },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
 const hide = Decoration.replace({});
 const mk = (cls: string, attrs?: Record<string, string>) => Decoration.mark({ class: cls, attributes: attrs });
 const line = (cls: string) => Decoration.line({ class: cls });
@@ -156,6 +249,27 @@ function build(view: EditorView, hideMarkers: boolean): DecorationSet {
         out.push(mk('cm-code').range(ln.from + a, ln.from + b));
         if (concealed) { replace(a, a + 1); replace(b - 1, b); }
         claim(a, b);
+      }
+
+      // baris tabel (saat tampil sebagai teks sumber)
+      if (isTableLine(text)) out.push(line('cm-tbl-src').range(ln.from));
+
+      // catatan kaki: definisi "[^id]: isi"
+      const fns = fnIndex(state);
+      const fd = /^\[\^([^\]\s]+)\]:\s?/.exec(text);
+      if (fd) {
+        const prevDef = n > 1 && /^\[\^[^\]\s]+\]:/.test(state.doc.line(n - 1).text);
+        out.push(line('cm-fn-def' + (prevDef ? '' : ' cm-fn-first')).range(ln.from));
+        if (concealed) replace(0, fd[0].length, Decoration.replace({ widget: new FootnoteLabelWidget(String(fns.get(fd[1]) ?? fd[1])) }));
+        else { out.push(mk('cm-md-mark').range(ln.from, ln.from + fd[0].length)); claim(0, fd[0].length); }
+      }
+
+      // rata teks (komentar di ujung baris)
+      const al = /\s*<!--\s*align:(center|right|justify)\s*-->\s*$/.exec(text);
+      if (al) {
+        out.push(line('cm-align-' + al[1]).range(ln.from));
+        if (concealed) replace(al.index, text.length);
+        else { out.push(mk('cm-md-mark').range(ln.from + al.index, ln.to)); claim(al.index, text.length); }
       }
 
       // blok
@@ -257,6 +371,36 @@ function build(view: EditorView, hideMarkers: boolean): DecorationSet {
         claim(a, b);
       }
 
+      // referensi catatan kaki [^id]
+      for (const r of text.matchAll(/\[\^([^\]\s]+)\](?!:)/g)) {
+        const a = r.index!;
+        const b = a + r[0].length;
+        if (!free(a, b)) continue;
+        if (concealed) replace(a, b, Decoration.replace({ widget: new FootnoteRefWidget(r[1], String(fns.get(r[1]) ?? r[1])) }));
+        else { out.push(mk('cm-fn-ref-src', { 'data-fn': r[1] }).range(ln.from + a, ln.from + b)); claim(a, b); }
+      }
+
+      // HTML terbatas buatan Noto: warna teks, stabilo berwarna, garis bawah, superskrip, subskrip
+      const tags: [RegExp, (m: RegExpExecArray) => Decoration][] = [
+        [/<span style="color:\s*(#[0-9a-fA-F]{3,8})\s*">(.*?)<\/span>/g, (t) => mk('cm-color', { style: `color:${t[1]}` })],
+        [/<mark style="background:\s*(#[0-9a-fA-F]{3,8})\s*">(.*?)<\/mark>/g, (t) => mk('cm-mark cm-hl', { style: `background:${t[1]}` })],
+        [/<u>(.*?)<\/u>/g, () => mk('cm-underline')],
+        [/<sup>(.*?)<\/sup>/g, () => mk('cm-sup')],
+        [/<sub>(.*?)<\/sub>/g, () => mk('cm-sub')],
+      ];
+      for (const [re, deco] of tags) {
+        for (const t of text.matchAll(re)) {
+          const a = t.index!;
+          const b = a + t[0].length;
+          const open = t[0].indexOf('>') + 1;
+          const close = t[0].length - t[0].lastIndexOf('<');
+          if (!free(a, a + open) || !free(b - close, b)) continue;
+          out.push(deco(t).range(ln.from + a + open, ln.from + b - close));
+          if (concealed) { replace(a, a + open); replace(b - close, b); }
+          else { out.push(mk('cm-md-mark').range(ln.from + a, ln.from + a + open)); out.push(mk('cm-md-mark').range(ln.from + b - close, ln.from + b)); }
+        }
+      }
+
       // gaya inline
       const inline: [RegExp, string, number][] = [
         [/\*\*([^*\n]+?)\*\*/g, 'cm-bold', 2],
@@ -304,7 +448,31 @@ export function livePreview(hideMarkers: boolean): Extension {
       provide: (p) => EditorView.atomicRanges.of((view) => view.plugin(p)?.decorations ?? Decoration.none),
       eventHandlers: {
         mousedown(e, view) {
-          const el = (e.target as HTMLElement).closest('.cm-wikilink, .cm-link, .cm-tag') as HTMLElement | null;
+          const tgt = e.target as HTMLElement;
+          // klik sel tabel → tampilkan teks sumber dengan kursor di sel itu
+          const cell = tgt.closest('.cm-table td, .cm-table th') as HTMLElement | null;
+          if (cell && !tgt.closest('.cm-wikilink, a')) {
+            const wrapEl = cell.closest('.cm-table-wrap') as HTMLElement;
+            const start = view.posAtDOM(wrapEl);
+            const p = cellPos(view.state.doc.toString(), start, Number(cell.dataset.r), Number(cell.dataset.c));
+            if (p !== null) { e.preventDefault(); view.dispatch({ selection: EditorSelection.cursor(p), scrollIntoView: true }); view.focus(); return true; }
+          }
+          // klik angka catatan kaki → lompat ke definisinya (dan sebaliknya)
+          const fnEl = tgt.closest('.cm-fn-ref, .cm-fn-ref-src') as HTMLElement | null;
+          if (fnEl && (fnEl.classList.contains('cm-fn-ref') || e.ctrlKey || e.metaKey)) {
+            const id = fnEl.dataset.fn!;
+            const doc = view.state.doc;
+            for (let i = 1; i <= doc.lines; i++) {
+              if (doc.line(i).text.startsWith(`[^${id}]:`)) {
+                e.preventDefault();
+                const l = doc.line(i);
+                view.dispatch({ selection: EditorSelection.cursor(l.to), effects: EditorView.scrollIntoView(l.from, { y: 'center' }) });
+                view.focus();
+                return true;
+              }
+            }
+          }
+          const el = tgt.closest('.cm-wikilink, .cm-link, .cm-tag') as HTMLElement | null;
           if (!el) return false;
           const pos = view.posAtDOM(el);
           const sameLine = view.state.doc.lineAt(pos).number === view.state.doc.lineAt(view.state.selection.main.head).number;
@@ -331,5 +499,5 @@ export function livePreview(hideMarkers: boolean): Extension {
       },
     },
   );
-  return plugin;
+  return hideMarkers ? [plugin, tableField] : plugin;
 }

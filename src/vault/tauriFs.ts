@@ -19,6 +19,8 @@ export class TauriFS implements VaultFS {
     this.label = this.root.split(/[\\/]/).pop() || this.root;
   }
   private abs(p: string) { return this.root + '/' + normPath(p); }
+  /** Path lengkap bergaya OS (untuk "Tampilkan di Explorer"). */
+  absolute(p: string) { const rel = normPath(p); const sep = this.root.includes('\\') ? '\\' : '/'; return rel ? this.root + sep + rel.split('/').join(sep) : this.root; }
   private get api() { return import('@tauri-apps/plugin-fs'); }
 
   async list(): Promise<FileEntry[]> {

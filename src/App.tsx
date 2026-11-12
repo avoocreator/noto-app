@@ -8,6 +8,7 @@ import { RightPanel } from './ui/RightPanel.tsx';
 import { Palette } from './ui/Palette.tsx';
 import { DialogHost, Toasts } from './ui/dialogs.tsx';
 import { AlarmHost } from './ui/AlarmHost.tsx';
+import { IconPickerHost } from './ui/IconPicker.tsx';
 import { Icon, type IconName } from './ui/Icon.tsx';
 import { Welcome } from './views/Welcome.tsx';
 import { Home } from './views/Home.tsx';
@@ -137,6 +138,7 @@ function MainApp() {
       {mobile && <BottomNav />}
       <Palette />
       <DialogHost />
+      <IconPickerHost />
       <AlarmHost />
       <Toasts />
     </div>

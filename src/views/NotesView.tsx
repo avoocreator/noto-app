@@ -7,14 +7,20 @@ import { CanvasEditor } from './CanvasEditor.tsx';
 import { basename, isCanvasPath, isNotePath, stripExt } from '../lib/analyze.ts';
 import { asStringList, removeProperty, setProperty, type FmValue } from '../lib/frontmatter.ts';
 import { relativeTime } from '../lib/dates.ts';
-import { deleteEntry, errMsg, newCanvas, newNote, openToday, renameEntry } from '../actions.ts';
+import { changeIcon, copyText, deleteEntry, duplicateEntry, errMsg, newCanvas, newNote, openToday, renameEntry } from '../actions.ts';
+import { EntryIcon } from '../ui/IconPicker.tsx';
 import { useContextMenu } from '../ui/ContextMenu.tsx';
+import { FormatBar } from '../ui/FormatBar.tsx';
+import { cmTarget } from '../editor/formatTarget.ts';
+import { useLook } from '../editor/look.ts';
+import type { EditorView } from '@codemirror/view';
 import { ask } from '../ui/dialogs.tsx';
 
 export function NotesView() {
   const vault = useVault();
   const { tabs, active, openPath, closeTab, editorMode, toggleEditorMode, toggleRight, rightOpen } = useApp();
   const ctx = useContextMenu();
+  const ribbonOn = useLook((st) => st.ribbon);
   if (!vault) return null;
 
   const tabsBar = (
@@ -37,11 +43,17 @@ export function NotesView() {
               ctx.open(e.clientX, e.clientY, [
                 { label: 'Tutup', icon: 'x', run: () => closeTab(p) },
                 { label: 'Tutup tab lain', icon: 'x', run: () => tabs.filter((t) => t !== p).forEach(closeTab) },
+                { label: 'Tutup semua', icon: 'x', run: () => [...tabs].forEach(closeTab) },
+                { label: 'Ganti nama', icon: 'edit', sep: true, disabled: !vault.has(p), run: () => void renameEntry(p) },
+                { label: 'Ganti ikon…', icon: 'smile', disabled: !vault.has(p), run: () => void changeIcon(p) },
+                { label: 'Gandakan', icon: 'copy', disabled: !vault.has(p), run: () => void duplicateEntry(p) },
+                { label: 'Sematkan', icon: 'pin', disabled: !vault.has(p) || !isNotePath(p), run: () => void vault.togglePin(p) },
+                { label: 'Salin path', icon: 'copy', sep: true, run: () => void copyText(p, 'Path') },
               ]);
             }}
           >
             <button className="tab-main" onClick={() => openPath(p)}>
-              <Icon name={isCanvasPath(p) ? 'canvas' : 'notes'} size={14} />
+              <EntryIcon path={p} fallback={isCanvasPath(p) ? 'canvas' : 'notes'} size={14} />
               <span>{vault.has(p) ? stripExt(basename(p)) : <s>{stripExt(basename(p))}</s>}</span>
             </button>
             <button className="icon-btn tiny" aria-label="Tutup tab" onClick={() => closeTab(p)}><Icon name="x" size={12} /></button>
@@ -50,6 +62,9 @@ export function NotesView() {
       </AnimatePresence>
       <button className="icon-btn tab-add" aria-label="Catatan baru" title="Catatan baru (Ctrl+N)" onClick={() => void newNote()}><Icon name="plus" size={16} /></button>
       <div className="grow" />
+      {active && (isNotePath(active) || isCanvasPath(active)) && (
+        <button className={'icon-btn' + (ribbonOn ? ' on' : '')} aria-label="Toolbar format" title="Toolbar format" onClick={() => useLook.getState().set({ ribbon: !ribbonOn })}><Icon name="bold" size={17} /></button>
+      )}
       {active && isNotePath(active) && (
         <button className="icon-btn" aria-label="Ganti mode editor" title={editorMode === 'live' ? 'Live preview — klik untuk source' : 'Source — klik untuk live preview'} onClick={toggleEditorMode}>
           <Icon name={editorMode === 'live' ? 'eye' : 'code'} size={17} />
@@ -122,9 +137,13 @@ function NotePage({ path, mode }: { path: string; mode: 'live' | 'source' }) {
   };
 
   const pinned = vault.config.pinned.includes(path);
+  const ribbon = useLook((st) => st.ribbon);
+  const [view, setView] = useState<EditorView | null>(null);
+  const [inTable, setInTable] = useState(false);
   return (
     <div className="note-page">
       <header className="note-head">
+        <button className="note-icon-btn" aria-label="Ganti ikon catatan" title="Ganti ikon" onClick={() => void changeIcon(path)}>{vault.iconOf(path) ?? <Icon name="smile" size={22} />}</button>
         <input
           className="note-title"
           value={title}
@@ -143,7 +162,8 @@ function NotePage({ path, mode }: { path: string; mode: 'live' | 'source' }) {
         </div>
       </header>
       {meta && Object.keys(meta.fm).length >= 0 && <PropertiesBar path={path} />}
-      <NoteEditor path={path} mode={mode} />
+      {ribbon && <FormatBar run={(op) => { if (view) cmTarget(view).run(op); }} inTable={inTable} look />}
+      <NoteEditor path={path} mode={mode} onView={setView} onSelection={setInTable} />
       <footer className="statusbar">
         <span>{meta?.words ?? 0} kata</span>
         <span>{meta?.tasks.filter((t) => !t.done).length ?? 0} tugas terbuka</span>

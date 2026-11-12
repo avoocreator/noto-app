@@ -171,3 +171,49 @@ li.on .pi { background: var(--accent); color: var(--accent-fg); }
 .alarm-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; width: 100%; }
 .alarm-snooze { display: inline-flex; gap: 4px; align-items: center; } .alarm-snooze select { padding: 8px 10px; border-radius: 999px; }
 .alarm .btn.ghost { color: inherit; }
+
+/* ── menu klik kanan: submenu, titik warna ───────────────────────────────────────────────── */
+.ctx { max-height: calc(100dvh - 16px); }
+.ctx-row { position: relative; }
+.ctx-sub { position: absolute; z-index: 71; }
+.ctx-label { flex: 1; text-align: left; }
+.ctx-ico-gap { width: 16px; flex: none; }
+.ctx-hint { font-family: var(--font-mono); font-size: .7rem; color: var(--text-3); background: transparent; border: 0; padding: 0; }
+.ctx-item:disabled { opacity: .4; pointer-events: none; }
+.ctx-swatches { padding: 6px 12px 8px; display: flex; flex-direction: column; gap: 6px; }
+.ctx-sw-label { display: flex; align-items: center; gap: 8px; font-size: .78rem; font-weight: 700; color: var(--text-2); }
+.ctx-dots { display: flex; flex-wrap: wrap; gap: 6px; }
+.ctx-dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--raised); box-shadow: 0 0 0 1.5px var(--border-strong); display: grid; place-items: center; transition: transform .12s var(--ease); }
+.ctx-dot:hover { transform: scale(1.2); } .ctx-dot.none { background: var(--surface); color: var(--text-2); }
+
+/* ── toolbar format ──────────────────────────────────────────────────────────────────────── */
+.fbar { flex: none; background: var(--sidebar); border-bottom: 1px solid var(--border); padding: 6px 12px; position: relative; z-index: 6; }
+.fb-row { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 2px 0; }
+.fb-row.fb-table { padding-top: 6px; margin-top: 4px; border-top: 1px dashed var(--border-strong); overflow: hidden; }
+.fb-btn { flex: none; min-width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 2px; color: var(--text-2); transition: background-color .12s, color .12s, transform .12s var(--ease); }
+.fb-btn.wide { padding: 0 6px; } .fb-btn:hover { background: var(--surface-2); color: var(--text); } .fb-btn:active { transform: scale(.92); } .fb-btn.on { background: var(--accent); color: var(--accent-fg); }
+.fb-sep { flex: none; width: 1.5px; height: 20px; background: var(--border-strong); margin: 0 6px; opacity: .6; }
+.fb-label { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: .74rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--accent-strong); padding-right: 6px; }
+.fb-text { flex: none; padding: 6px 10px; border-radius: 10px; font-size: .8rem; font-weight: 700; color: var(--text-2); } .fb-text:hover { background: var(--surface-2); color: var(--text); } .fb-text.danger:hover { background: var(--danger-soft); color: var(--danger); }
+.fb-pop-anchor { position: relative; flex: none; display: inline-flex; }
+.fb-pane { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; min-width: 190px; background: var(--raised); border: 1.5px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.fb-pane.wide { width: 300px; max-width: calc(100vw - 24px); }
+.fb-title { display: flex; align-items: center; gap: 6px; font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); margin-top: 2px; }
+.fb-dots { display: flex; flex-wrap: wrap; gap: 8px; max-width: 220px; }
+.fb-dot { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--raised); box-shadow: 0 0 0 1.5px var(--border-strong); display: grid; place-items: center; transition: transform .12s var(--ease); } .fb-dot:hover { transform: scale(1.18); } .fb-dot.none { background: var(--surface); color: var(--text-2); }
+.fb-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 10px; text-align: left; font-weight: 500; } .fb-item:hover { background: var(--surface); }
+.fb-h1 { font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; } .fb-h2 { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; } .fb-h3 { font-weight: 700; font-size: 1.02rem; } .fb-h4 { font-weight: 700; font-size: .92rem; }
+.fb-grid { display: grid; grid-template-columns: repeat(8, 22px); gap: 3px; }
+.fb-cell { width: 22px; height: 22px; border-radius: 5px; background: var(--surface); border: 1.5px solid var(--border-strong); } .fb-cell.on { background: var(--accent); border-color: var(--accent-strong); }
+.fb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cv-toolbar.cv-format { top: 70px; padding: 4px 8px; border-radius: 18px; max-width: calc(100% - 16px); overflow: visible; display: block; }
+.cv-toolbar.cv-format .fbar { background: transparent; border: 0; padding: 0; }
+.cv-toolbar.cv-format .fb-btn { width: auto; border-radius: 10px; }
+@media (max-width: 900px) { .cv-toolbar.cv-format { top: 58px; } }
+
+/* ── pemilih ikon ────────────────────────────────────────────────────────────────────────── */
+.icon-picker { width: min(420px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 12px; }
+.emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; max-height: 260px; overflow-y: auto; }
+.emoji { font-size: 1.35rem; line-height: 1; padding: 6px 0; border-radius: 10px; transition: transform .12s var(--ease), background-color .12s; } .emoji:hover { background: var(--surface-2); transform: scale(1.18); } .emoji.on { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-strong); }
+.emoji-ico { display: inline-grid; place-items: center; width: 1.25em; line-height: 1; flex: none; }
+.note-icon-btn { font-size: 1.6rem; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; flex: none; color: var(--text-3); transition: background-color .15s; } .note-icon-btn:hover { background: var(--surface); }

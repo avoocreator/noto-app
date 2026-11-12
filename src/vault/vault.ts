@@ -19,6 +19,8 @@ export interface VaultConfig {
   deviceId: string;
   /** id vault di cloud (null = sinkron belum diaktifkan) */
   syncId: string | null;
+  /** ikon (emoji) per berkas/folder */
+  icons: Record<string, string>;
 }
 
 const DEFAULT_CONFIG = (): VaultConfig => ({
@@ -29,6 +31,7 @@ const DEFAULT_CONFIG = (): VaultConfig => ({
   widgetPath: null,
   deviceId: 'dev-' + randomId(3),
   syncId: null,
+  icons: {},
 });
 
 export interface HistoryEntry {
@@ -300,6 +303,7 @@ export class Vault {
     this.entries.set(to, { path: to, mtime: now, size: c?.length ?? 0 });
     if (c !== undefined) this.ingest(to, c, now);
     this.cfg.pinned = this.cfg.pinned.map((p) => (p === from ? to : p));
+    this.remapIcons(from, to);
     if (this.cfg.widgetPath === from) this.cfg.widgetPath = to;
     this.rebuild();
 
@@ -331,6 +335,9 @@ export class Vault {
 
   async renameFolder(from: string, to: string): Promise<void> {
     await this.fs.rename(normPath(from), normPath(to));
+    this.remapIcons(normPath(from), normPath(to));
+    this.cfg.pinned = this.cfg.pinned.map((p) => (p.startsWith(normPath(from) + '/') ? normPath(to) + p.slice(normPath(from).length) : p));
+    await this.saveConfig();
     await this.refresh();
     this.emit();
   }
@@ -348,6 +355,7 @@ export class Vault {
     this.metas.delete(path);
     this.searchIdx.delete(path);
     this.cfg.pinned = this.cfg.pinned.filter((p) => p !== path);
+    delete this.cfg.icons[path];
     if (this.cfg.widgetPath === path) this.cfg.widgetPath = null;
     this.rebuild();
     await this.saveConfig();
@@ -358,6 +366,8 @@ export class Vault {
     const prefix = normPath(path) + '/';
     for (const f of this.files.filter((x) => x.path.startsWith(prefix))) await this.remove(f.path);
     await this.fs.removeDir(normPath(path));
+    for (const k of Object.keys(this.cfg.icons)) if (k === normPath(path) || k.startsWith(prefix)) delete this.cfg.icons[k];
+    await this.saveConfig();
     this.dirs = this.dirs.filter((d) => d !== normPath(path) && !d.startsWith(prefix));
     this.emit();
   }
@@ -440,6 +450,34 @@ export class Vault {
     this.cfg = { ...this.cfg, ...patch };
     await this.saveConfig();
     this.emit();
+  }
+  /** Pindahkan ikon saat berkas/folder dipindah atau diganti namanya. */
+  private remapIcons(from: string, to: string) {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(this.cfg.icons)) {
+      if (k === from) out[to] = v;
+      else if (k.startsWith(from + '/')) out[to + k.slice(from.length)] = v;
+      else out[k] = v;
+    }
+    this.cfg.icons = out;
+  }
+  iconOf(path: string): string | undefined { return this.cfg.icons[normPath(path)]; }
+  /** Ganti ikon (emoji) berkas/folder; null = hapus. */
+  async setIcon(path: string, icon: string | null) {
+    const icons = { ...this.cfg.icons };
+    if (icon) icons[normPath(path)] = icon; else delete icons[normPath(path)];
+    await this.setConfig({ icons });
+  }
+  /** Gandakan berkas (catatan, canvas, atau lampiran) menjadi "nama salinan". */
+  async duplicate(path: string): Promise<string> {
+    path = normPath(path);
+    const ext = /\.[A-Za-z0-9]+$/.exec(path)?.[0] ?? '';
+    const to = await uniquePath(this.fs, dirname(path), `${stripExt(basename(path))} salinan`, ext);
+    if (isNotePath(path) || isCanvasPath(path)) await this.write(to, this.contents.get(path) ?? (await this.fs.readText(path)));
+    else { await this.fs.writeBinary(to, await this.fs.readBinary(path)); await this.refresh(); }
+    const ic = this.cfg.icons[path];
+    if (ic) await this.setIcon(to, ic);
+    return to;
   }
   async togglePin(path: string) {
     const has = this.cfg.pinned.includes(path);

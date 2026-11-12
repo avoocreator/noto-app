@@ -1,6 +1,24 @@
 import { EditorSelection, type StateCommand } from '@codemirror/state';
 import { keymap, type EditorView } from '@codemirror/view';
 import { toggleTaskLine } from '../lib/tasks.ts';
+import { applyFormat, tableTab } from '../lib/format.ts';
+
+/** Perintah format berbasis lib/format (satu pintu dengan toolbar & klik kanan). */
+export const fmt = (op: string): StateCommand => ({ state, dispatch }) => {
+  const { from, to } = state.selection.main;
+  const r = applyFormat(state.doc.toString(), from, to, op);
+  if (!r) return false;
+  dispatch(state.update({ changes: r.changes, selection: EditorSelection.range(r.from, r.to), scrollIntoView: true, userEvent: 'input.format' }));
+  return true;
+};
+
+/** Tab / Shift+Tab di dalam tabel pindah antar sel; di luar tabel diteruskan ke perintah lain. */
+const tableTabCmd = (dir: 1 | -1): StateCommand => ({ state, dispatch }) => {
+  const r = tableTab(state.doc.toString(), state.selection.main.head, dir);
+  if (!r) return false;
+  dispatch(state.update({ changes: r.changes, selection: EditorSelection.range(r.from, r.to), scrollIntoView: true, userEvent: 'input.format' }));
+  return true;
+};
 
 /** Bungkus/lepas penanda di sekitar seleksi (atau kata di bawah kursor). */
 export function wrapWith(mark: string): StateCommand {
@@ -87,13 +105,23 @@ export const continueList: StateCommand = ({ state, dispatch }) => {
 };
 
 export const noteKeymap = keymap.of([
-  { key: 'Mod-b', run: wrapWith('**') },
-  { key: 'Mod-i', run: wrapWith('*') },
-  { key: 'Mod-e', run: wrapWith('`') },
-  { key: 'Mod-Shift-x', run: wrapWith('~~') },
-  { key: 'Mod-Shift-h', run: wrapWith('==') },
+  { key: 'Mod-b', run: fmt('bold') },
+  { key: 'Mod-i', run: fmt('italic') },
+  { key: 'Mod-u', run: fmt('underline') },
+  { key: 'Mod-e', run: fmt('code') },
+  { key: 'Mod-Shift-x', run: fmt('strike') },
+  { key: 'Mod-Shift-h', run: fmt('hl:#ffe066') },
+  { key: 'Mod-Shift-7', run: fmt('number') },
+  { key: 'Mod-Shift-8', run: fmt('bullet') },
+  { key: 'Mod-Alt-0', run: fmt('h:0') },
+  { key: 'Mod-Alt-1', run: fmt('h:1') },
+  { key: 'Mod-Alt-2', run: fmt('h:2') },
+  { key: 'Mod-Alt-3', run: fmt('h:3') },
+  { key: 'Mod-Alt-f', run: fmt('footnote') },
   { key: 'Mod-k', run: insertLink },
   { key: 'Mod-Enter', run: toggleTask },
+  { key: 'Tab', run: tableTabCmd(1) },
+  { key: 'Shift-Tab', run: tableTabCmd(-1) },
   { key: 'Enter', run: continueList },
 ]);
 

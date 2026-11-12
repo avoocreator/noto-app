@@ -33,8 +33,8 @@ npm run build     # typecheck + build produksi ke dist/
 
 Data tidak dienkripsi end-to-end; dilindungi RLS per pengguna.
 
-## Desktop (Tauri 2)
-Butuh Rust. `npm run tauri dev` / `npm run tauri build`. Jika ikon `.icns` diperlukan (macOS): `npx tauri icon src-tauri/icons/icon.png`.
+## Desktop (Tauri 2) — .exe Windows
+Panduan lengkap: [docs/DESKTOP.md](docs/DESKTOP.md). Vault = folder apa pun di File Explorer. `npm run desktop:build` → installer di `src-tauri/target/release/bundle/nsis/`. Butuh Rust. `npm run tauri dev` / `npm run tauri build`. Jika ikon `.icns` diperlukan (macOS): `npx tauri icon src-tauri/icons/icon.png`.
 
 ## Android (Capacitor)
 ```bash
@@ -46,3 +46,6 @@ Batasan: vault Android ada di penyimpanan privat aplikasi (belum ada pemilih fol
 
 ## Struktur
 `src/lib` logika murni · `src/vault` adaptor penyimpanan · `src/sync` sinkron · `src/editor` CodeMirror · `src/views` halaman · `src/theme` warna · `native/` widget Android · `src-tauri/` desktop · `scripts/make-brand.py` generator logo/ikon.
+
+## Pengeditan (gaya Word)
+Toolbar format (tebal, miring, garis bawah, coret, stabilo, warna teks, rata, spasi, ukuran, daftar bernomor, kutipan, tabel, catatan kaki) di catatan dan canvas. Pintasan: Ctrl+B/I/U, Ctrl+E (tengah), Alt+0–3 (heading), Alt+F (catatan kaki). Klik kanan di editor, canvas, pohon file, dan tab untuk menu edit, rename, ikon, duplikat, salin tautan.

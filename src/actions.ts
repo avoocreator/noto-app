@@ -2,6 +2,7 @@ import { useApp } from './store.ts';
 import { smartParse } from './lib/smartParse.ts';
 import { formatTaskLine, patchTaskLine, TASK_LINE, toggleTaskInContent, type TaskPatch } from './lib/tasks.ts';
 import { basename, dirname, stripExt } from './lib/analyze.ts';
+import { pickIcon } from './ui/IconPicker.tsx';
 import { ask, confirmBox } from './ui/dialogs.tsx';
 
 const app = () => useApp.getState();
@@ -161,4 +162,35 @@ export function downloadBlob(name: string, data: Uint8Array | string, type = 'ap
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/* ── menu klik kanan berkas ─────────────────────────────────────────────────────────────── */
+export async function duplicateEntry(path: string) {
+  const { vault, openPath, toast } = app();
+  if (!vault) return;
+  try { const to = await vault.duplicate(path); toast('Digandakan', 'ok'); openPath(to); } catch (e) { toast(errMsg(e), 'error'); }
+}
+
+export async function changeIcon(path: string) {
+  const { vault } = app();
+  if (!vault) return;
+  const v = await pickIcon(vault.iconOf(path));
+  if (v === undefined) return;
+  await vault.setIcon(path, v || null);
+}
+
+export async function copyText(text: string, what: string) {
+  const { toast } = app();
+  try { await navigator.clipboard.writeText(text); toast(`${what} disalin`, 'ok'); } catch { toast('Akses papan klip ditolak', 'error'); }
+}
+
+/** Buka folder berisi berkas di File Explorer / Finder (hanya aplikasi desktop). */
+export async function revealInExplorer(path: string) {
+  const { vault, toast } = app();
+  const fs = vault?.fs as { absolute?: (p: string) => string } | undefined;
+  if (!fs?.absolute) return;
+  try {
+    const { revealItemInDir } = await import('@tauri-apps/plugin-opener');
+    await revealItemInDir(fs.absolute(path));
+  } catch (e) { toast(errMsg(e), 'error'); }
 }
