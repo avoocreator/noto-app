@@ -39,7 +39,7 @@ export function Welcome({ pending }: { pending?: VaultRecord | null }) {
       <motion.div className="welcome-inner" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}>
         <img src="./favicon.svg" alt="" width={64} height={64} className="welcome-logo" />
         <h1>Selamat datang di <span className="grad">noto</span></h1>
-        <p className="muted lead">Catatan dan canvas dalam satu vault — berkas Markdown biasa yang tetap milikmu.</p>
+        <p className="muted lead">Aplikasi catatan Markdown lokal yang semudah kertas catatan biasa — tanpa kerumitan, berkas tetap milikmu.</p>
 
         {pending && (
           <motion.div className="resume" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -61,11 +61,11 @@ export function Welcome({ pending }: { pending?: VaultRecord | null }) {
         )}
 
         <div className="welcome-cards">
-          {caps.folder && card('folder', 'folderOpen', 'Buka folder', caps.tauri ? 'Pilih folder di komputermu. Vault Obsidian pun bisa.' : 'Pilih folder di perangkat. Vault Obsidian pun bisa.', async () => {
+          {caps.folder && card('folder', 'folderOpen', 'Pilih folder', 'Buka folder di perangkatmu. Langsung menulis berkas .md asli.', async () => {
             const r = await openFolderVault();
             if (r) setVault(r.vault, r.rec);
           }, 1)}
-          {card('local', 'sparkle', caps.native ? 'Vault di aplikasi' : 'Vault di browser', caps.native ? 'Tersimpan di penyimpanan aplikasi. Aktifkan sinkron untuk membawanya ke PC.' : 'Mulai cepat tanpa memilih folder. Bisa diekspor kapan saja.', async () => {
+          {card('local', 'sparkle', 'Mulai cepat', 'Langsung menulis catatan tanpa perlu memilih folder.', async () => {
             const r = await createLocalVault('Vault saya');
             setVault(r.vault, r.rec);
           }, caps.folder ? 2 : 1)}

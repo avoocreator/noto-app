@@ -1,6 +1,8 @@
 # Noto v3
 
-Vault catatan Markdown + canvas, lokal-first. Sinkron opsional ke Supabase (HP ⇄ PC). Widget 2×2 di Android dan jendela tempel di desktop.
+Aplikasi catatan Markdown lokal yang semudah kertas catatan biasa — tanpa kerumitan Obsidian dan tanpa keterikatan cloud Notion.
+
+Berkas `.md` dan `.canvas` tetap 100% milikmu di perangkat sendiri. Dibuat untuk pelajar, mahasiswa, dan guru yang ingin mencatat sehari-hari tanpa perlu mempelajari sintaks teknis rumit. Fitur sinkronisasi opsional ke Supabase (HP ⇄ PC), widget 2×2 di Android, dan jendela tempel melayang di desktop.
 
 ## Jalankan
 
