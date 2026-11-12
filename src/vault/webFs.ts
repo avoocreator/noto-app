@@ -60,7 +60,9 @@ export async function ensurePermission(h: Dir, request = false): Promise<boolean
 export class WebFS implements VaultFS {
   readonly kind = 'web' as const;
   readonly label: string;
-  constructor(private root: Dir) {
+  private root: Dir;
+  constructor(root: Dir) {
+    this.root = root;
     this.label = root.name;
   }
 

@@ -26,7 +26,9 @@ export class IdbFS implements VaultFS {
   private enc = new TextEncoder();
   private dec = new TextDecoder();
 
-  constructor(public readonly id: string, label?: string) {
+  readonly id: string;
+  constructor(id: string, label?: string) {
+    this.id = id;
     this.label = label ?? id;
     this.db = open('noto-vault-' + id);
   }

@@ -63,7 +63,10 @@ const mime = (p: string) => {
 };
 
 export class SupabaseRemote implements RemoteStore {
-  constructor(private client: SupabaseClient, private userId: string, private vaultId: string) {}
+  private client: SupabaseClient;
+  private userId: string;
+  private vaultId: string;
+  constructor(client: SupabaseClient, userId: string, vaultId: string) { this.client = client; this.userId = userId; this.vaultId = vaultId; }
   private obj(path: string) { return `${this.userId}/${this.vaultId}/${path}`; }
 
   async list(): Promise<RemoteFile[]> {

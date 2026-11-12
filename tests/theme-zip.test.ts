@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { runPython } from './py.ts';
 import { buildTokens, auditContrast, PRESETS, DEFAULT_THEME, type ThemeSettings } from '../src/theme/palettes.ts';
 import { hexToRgb, rgbToOklch, oklchHex } from '../src/theme/color.ts';
 import { makeZip, crc32 } from '../src/lib/zip.ts';
@@ -35,7 +35,7 @@ test('tema: kontras memenuhi batas untuk semua preset, mode, intensitas', () => 
   }
 });
 
-test('zip: valid menurut unzip/python', () => {
+test('zip: valid menurut unzip/python', (t) => {
   assert.equal(crc32(new TextEncoder().encode('123456789')), 0xcbf43926);
   const zip = makeZip([
     { path: 'Halo.md', data: new TextEncoder().encode('# Halo\n') },
@@ -45,11 +45,12 @@ test('zip: valid menurut unzip/python', () => {
   const dir = mkdtempSync(join(tmpdir(), 'zip-'));
   const f = join(dir, 't.zip');
   writeFileSync(f, zip);
-  const out = execFileSync('python3', ['-c', `
+  const out = runPython(['-c', `
 import zipfile,sys
 z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None
 print(sorted(z.namelist())); print(z.read('Halo.md').decode())
-`, f]).toString();
+`, f]);
+  if (out === null) return t.skip('Python tidak ditemukan di PATH');
   assert.match(out, /Halo\.md/);
   assert.match(out, /Ünïcode\.md/);
   assert.match(out, /# Halo/);

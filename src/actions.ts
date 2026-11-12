@@ -1,6 +1,6 @@
 import { useApp } from './store.ts';
 import { smartParse } from './lib/smartParse.ts';
-import { formatTaskLine, patchTaskLine, toggleTaskInContent, type TaskPatch } from './lib/tasks.ts';
+import { formatTaskLine, patchTaskLine, TASK_LINE, toggleTaskInContent, type TaskPatch } from './lib/tasks.ts';
 import { basename, dirname, stripExt } from './lib/analyze.ts';
 import { ask, confirmBox } from './ui/dialogs.tsx';
 
@@ -106,6 +106,27 @@ export async function updateTask(t: { path: string; line: number }, patch: TaskP
   if (lines[t.line] === undefined) return;
   lines[t.line] = patchTaskLine(lines[t.line], patch);
   await vault.write(t.path, lines.join('\n'));
+}
+
+/** Hapus satu tugas dari berkasnya, dengan tombol Urungkan di toast. */
+export async function deleteTask(t: { path: string; line: number }) {
+  const { vault, toast } = app();
+  const c = vault?.content(t.path);
+  if (!vault || c === undefined) return;
+  const lines = c.split('\n');
+  const removed = lines[t.line];
+  if (removed === undefined || !TASK_LINE.test(removed)) return;
+  lines.splice(t.line, 1);
+  await vault.write(t.path, lines.join('\n'));
+  toast('Tugas dihapus', 'info', {
+    label: 'Urungkan',
+    run: () => {
+      const now = vault.content(t.path) ?? '';
+      const ls = now.split('\n');
+      ls.splice(Math.min(t.line, ls.length), 0, removed);
+      void vault.write(t.path, ls.join('\n'));
+    },
+  });
 }
 
 export const INBOX = 'Inbox.md';

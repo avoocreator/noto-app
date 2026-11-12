@@ -13,7 +13,9 @@ export interface PreviewEnv {
 export const previewEnv = Facet.define<PreviewEnv, PreviewEnv>({ combine: (v) => v[0] });
 
 class CheckboxWidget extends WidgetType {
-  constructor(readonly checked: boolean, readonly from: number) { super(); }
+  readonly checked: boolean;
+  readonly from: number;
+  constructor(checked: boolean, from: number) { super(); this.checked = checked; this.from = from; }
   eq(o: CheckboxWidget) { return o.checked === this.checked && o.from === this.from; }
   toDOM(view: EditorView) {
     const el = document.createElement('span');
@@ -47,7 +49,11 @@ class HrWidget extends WidgetType {
 }
 
 class ImageWidget extends WidgetType {
-  constructor(readonly name: string, readonly alt: string, readonly env: PreviewEnv, readonly width?: number) { super(); }
+  readonly name: string;
+  readonly alt: string;
+  readonly env: PreviewEnv;
+  readonly width?: number;
+  constructor(name: string, alt: string, env: PreviewEnv, width?: number) { super(); this.name = name; this.alt = alt; this.env = env; this.width = width; }
   eq(o: ImageWidget) { return o.name === this.name && o.width === this.width; }
   toDOM() {
     const wrap = document.createElement('span');
@@ -67,7 +73,9 @@ class ImageWidget extends WidgetType {
 }
 
 class EmbedChip extends WidgetType {
-  constructor(readonly label: string, readonly ok: boolean) { super(); }
+  readonly label: string;
+  readonly ok: boolean;
+  constructor(label: string, ok: boolean) { super(); this.label = label; this.ok = ok; }
   eq(o: EmbedChip) { return o.label === this.label && o.ok === this.ok; }
   toDOM() {
     const s = document.createElement('span');

@@ -6,7 +6,7 @@ import { DAYS_ID, MONTHS_SHORT_ID, parseYmd, startOfDay, ymd } from '../lib/date
 import { bucketOf, type TaskBucket } from '../lib/tasks.ts';
 import type { TaskWithSource } from '../lib/vaultIndex.ts';
 import { basename, stripExt } from '../lib/analyze.ts';
-import { toggleTaskItem, updateTask } from '../actions.ts';
+import { deleteTask, toggleTaskItem, updateTask } from '../actions.ts';
 import { QuickTask } from '../ui/QuickTask.tsx';
 import { TaskPicker } from '../ui/TaskPicker.tsx';
 import { useReducedMotion } from '../theme/useTheme.ts';
@@ -162,6 +162,7 @@ export function TasksView() {
                       {t.due && <i className={'due' + (t.due < todayKey && !t.done ? ' late' : '')}><Icon name="calendar" size={12} /> {dueLabel(t.due, today)}</i>}
                     </span>
                     <TaskPicker compact value={{ due: t.due, time: t.time, priority: t.priority, recur: t.recur }} onChange={(v) => void updateTask(t, { due: v.due ?? null, time: v.time ?? null, priority: v.priority ?? null, recur: v.recur ?? null })} />
+                    <button className="icon-btn task-del" aria-label={`Hapus tugas ${t.text}`} title="Hapus tugas" onClick={() => void deleteTask(t)}><Icon name="trash" size={15} /></button>
                   </motion.li>
                 ))}
               </AnimatePresence>

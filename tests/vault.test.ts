@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { runPython } from './py.ts';
 import { Vault } from '../src/vault/vault.ts';
 import { MemoryFS } from '../src/vault/memoryFs.ts';
 import { rewriteLinks } from '../src/lib/links.ts';
@@ -119,13 +119,14 @@ test('vault: pencarian + filter + pin ikut rename', async () => {
   assert.deepEqual(v.config.pinned, ['Alfa.md']);
 });
 
-test('vault: ekspor zip valid', async () => {
+test('vault: ekspor zip valid', async (t) => {
   const { v } = await demo();
   const zip = await v.exportZip();
   const dir = mkdtempSync(join(tmpdir(), 'vz-'));
   const f = join(dir, 'v.zip');
   writeFileSync(f, zip);
-  const out = execFileSync('python3', ['-c', 'import zipfile,sys;z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None;print(sorted(z.namelist()))', f]).toString();
+  const out = runPython(['-c', 'import zipfile,sys;z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None;print(sorted(z.namelist()))', f]);
+  if (out === null) return t.skip('Python tidak ditemukan di PATH');
   assert.match(out, /Alpha\.md/);
   assert.match(out, /Lampiran\/x\.png/);
   assert.doesNotMatch(out, /obsidian/);

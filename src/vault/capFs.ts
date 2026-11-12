@@ -22,7 +22,9 @@ export class CapFS implements VaultFS {
   readonly label: string;
   private base: string;
   private dir = Directory.Data;
-  constructor(public readonly vaultId: string, label?: string) {
+  readonly vaultId: string;
+  constructor(vaultId: string, label?: string) {
+    this.vaultId = vaultId;
     this.base = `vaults/${vaultId}`;
     this.label = label ?? vaultId;
   }

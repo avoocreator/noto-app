@@ -100,7 +100,7 @@ export function resolvePreset(s: Pick<ThemeSettings, 'presetId' | 'customHex' | 
   const found = PRESETS.find((p) => p.id === s.presetId);
   if (found) return found;
   const rgb = hexToRgb(s.customHex) ?? [232, 121, 168];
-  const { h, c } = rgbToOklch(rgb);
+  const { h, C: c } = rgbToOklch(rgb);
   const base = Math.min(0.17, Math.max(0.05, c));
   const offs = HARMONY_OFFSETS[s.harmony];
   return {

@@ -260,3 +260,5 @@
 .sound-ico { width: 34px; height: 34px; border-radius: 50%; background: var(--tint-1); color: var(--tint-1-fg); display: grid; place-items: center; flex: none; }
 .sound-card:nth-child(4n+2) .sound-ico { background: var(--tint-2); color: var(--tint-2-fg); } .sound-card:nth-child(4n+3) .sound-ico { background: var(--tint-3); color: var(--tint-3-fg); } .sound-card:nth-child(4n) .sound-ico { background: var(--tint-4); color: var(--tint-4-fg); }
 .sound-t { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.25; } .sound-t b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .sound-t small { color: var(--text-3); font-size: .74rem; }
+.task-del { opacity: .4; } .task-row:hover .task-del, .task-del:focus-visible { opacity: 1; color: var(--danger); } .task-del:hover { background: var(--danger-soft); }
+@media (hover: none) { .task-del { opacity: .7; } }
