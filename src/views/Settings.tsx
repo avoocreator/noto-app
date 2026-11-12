@@ -7,7 +7,8 @@ import { auditContrast, buildTokens, HARMONY_OFFSETS, PRESETS, type Density, typ
 import { systemMode } from '../theme/useTheme.ts';
 import { downloadBlob, errMsg } from '../actions.ts';
 import { confirmBox } from '../ui/dialogs.tsx';
-import { ensureNotifyPermission, loadReminderPrefs, notifyNow, openWidgetWindow, saveReminderPrefs, summaryFor } from '../native/bridge.ts';
+import { openWidgetWindow, summaryFor } from '../native/bridge.ts';
+import { ReminderSettings } from './ReminderSettings.tsx';
 import { confirmOtp, disableSync, enableSync, refreshAuth, remoteVaults, requestOtp, signOut, useSyncStore } from '../sync/state.ts';
 import { runSyncAction } from '../ui/syncAction.ts';
 import { relativeTime } from '../lib/dates.ts';
@@ -322,11 +323,9 @@ function SyncTab() {
 function WidgetTab() {
   const vault = useVault();
   const toast = useApp((s) => s.toast);
-  const [rem, setRem] = useState(loadReminderPrefs);
   const caps = capabilities();
   if (!vault) return null;
   const sum = summaryFor(vault);
-  const setRemP = (p: Partial<typeof rem>) => { const n = { ...rem, ...p }; setRem(n); saveReminderPrefs(n); };
 
   return (
     <div className="stack-l">
@@ -357,15 +356,7 @@ function WidgetTab() {
         </div>
       </section>
 
-      <section className="panel">
-        <h3>Pengingat tugas</h3>
-        <Row label="Aktifkan pengingat" hint="Untuk tugas yang punya jam (⏰)">
-          <Toggle label="Pengingat" on={rem.on} onChange={async (v) => { if (v && !(await ensureNotifyPermission())) { toast('Izin notifikasi ditolak', 'error'); return; } setRemP({ on: v }); toast(v ? 'Pengingat aktif — muat ulang aplikasi untuk menerapkan' : 'Pengingat dimatikan', 'ok'); }} />
-        </Row>
-        <Row label="Ingatkan sebelum"><select value={rem.lead} onChange={(e) => setRemP({ lead: Number(e.target.value) })} aria-label="Waktu pengingat">{[0, 5, 10, 15, 30, 60].map((m) => <option key={m} value={m}>{m === 0 ? 'Tepat waktu' : `${m} menit`}</option>)}</select></Row>
-        <button className="btn ghost" onClick={async () => { if (await ensureNotifyPermission()) void notifyNow('Noto', 'Notifikasi berfungsi 🎉'); else toast('Izin notifikasi belum diberikan', 'error'); }}>Coba notifikasi</button>
-        {caps.native ? <p className="muted small">Di Android, pengingat dijadwalkan ke sistem sehingga tetap berbunyi saat aplikasi tertutup.</p> : <p className="muted small">Di browser/desktop, pengingat berbunyi selama Noto terbuka (boleh diminimalkan).</p>}
-      </section>
+      <ReminderSettings />
     </div>
   );
 }

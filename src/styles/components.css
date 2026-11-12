@@ -142,3 +142,32 @@ li.on .pi { background: var(--accent); color: var(--accent-fg); }
 .tab-main { display: flex; align-items: center; gap: 7px; padding: 7px 6px 7px 14px; font-weight: 600; font-size: .86rem; min-width: 0; }
 .tab-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab-add { flex: none; }
+
+/* ── Picker tanggal & jam ────────────────────────────────────────────────────────────────── */
+.picker { position: relative; display: inline-flex; flex: none; }
+.picker-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; background: var(--surface); color: var(--text-2); font-weight: 600; font-size: .84rem; transition: background-color .15s, color .15s; }
+.picker-btn:hover { background: var(--surface-2); color: var(--text); }
+.picker-btn.set { background: var(--accent-soft); color: var(--accent-strong); }
+.task-row .picker-btn { padding: 6px; background: transparent; opacity: .45; } .task-row:hover .picker-btn, .task-row .picker-btn[aria-expanded='true'] { opacity: 1; background: var(--raised); }
+@media (hover: none) { .task-row .picker-btn { opacity: .8; } }
+.picker-pop { position: absolute; z-index: 40; top: calc(100% + 8px); right: 0; width: 330px; max-width: calc(100vw - 24px); max-height: min(78dvh, 640px); overflow-y: auto; background: var(--raised); border: 1.5px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 14px; display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.picker-pop .cal-day { width: 32px; height: 32px; }
+.picker-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-btn { padding: 5px 12px; border-radius: 999px; background: var(--surface); font-size: .8rem; font-weight: 600; color: var(--text-2); }
+.chip-btn:hover { background: var(--surface-2); color: var(--text); } .chip-btn.on { background: var(--ink); color: var(--ink-fg); }
+.picker-sec { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); padding-top: 10px; }
+.picker-l { display: flex; align-items: center; gap: 6px; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); }
+.picker-time { display: flex; align-items: center; gap: 6px; } .picker-time input { flex: 1; font-size: 1.1rem; font-weight: 700; }
+.picker-foot { display: flex; justify-content: space-between; gap: 8px; position: sticky; bottom: -14px; background: var(--raised); padding: 8px 0 2px; }
+@media (max-width: 560px) { .picker-pop { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); top: auto; width: auto; max-width: none; } }
+.quick .picker-pop { right: auto; left: 0; } @media (min-width: 561px) { .quick .picker-pop { left: auto; right: 0; } }
+
+/* ── Alarm ───────────────────────────────────────────────────────────────────────────────── */
+.alarm-scrim { z-index: 120; }
+.alarm { width: min(420px, calc(100vw - 32px)); background: var(--tint-1); color: var(--tint-1-fg); border-radius: 32px; padding: 30px 26px 22px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; box-shadow: var(--shadow); }
+.alarm h2 { font-family: var(--font-display); font-size: 1.7rem; line-height: 1.15; margin: 2px 0 12px; word-break: break-word; }
+.alarm-bell { width: 76px; height: 76px; border-radius: 50%; background: var(--ink); color: var(--ink-fg); display: grid; place-items: center; box-shadow: 0 0 0 10px color-mix(in oklab, var(--ink) 14%, transparent); transform-origin: 50% 12%; }
+.alarm-time { font-weight: 700; opacity: .75; }
+.alarm-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; width: 100%; }
+.alarm-snooze { display: inline-flex; gap: 4px; align-items: center; } .alarm-snooze select { padding: 8px 10px; border-radius: 999px; }
+.alarm .btn.ghost { color: inherit; }

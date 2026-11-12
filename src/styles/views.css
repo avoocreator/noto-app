@@ -251,3 +251,12 @@
 .widget-win header { display: flex; justify-content: space-between; align-items: center; cursor: grab; } .widget-win header div { display: flex; flex-direction: column; line-height: 1.15; } .widget-win header b { font-family: var(--font-display); font-size: 1.25rem; } .widget-win header small { opacity: .7; }
 .widget-win ul { list-style: none; margin: 0; padding: 0; flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 6px; } .widget-win li { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: .92rem; } .widget-win li.done .w-text { text-decoration: line-through; opacity: .6; } .w-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .widget-win small { opacity: .7; font-size: .72rem; } .w-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: .5; margin: 0 7px; }
 .w-add { display: flex; align-items: center; gap: 8px; background: var(--ink); color: var(--ink-fg); border-radius: 999px; padding: 4px 14px; } .w-add input { flex: 1; border: 0 !important; background: transparent !important; box-shadow: none !important; color: inherit; padding: 6px 0 !important; outline: none; } .w-add input::placeholder { color: color-mix(in oklab, var(--ink-fg) 60%, transparent); }
+
+/* ── Pengaturan nada ─────────────────────────────────────────────────────────────────────── */
+.sound-h { margin-top: 6px; }
+.sound-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.sound-card { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-lg); background: var(--raised); border: 2px solid transparent; text-align: left; cursor: pointer; transition: transform .15s var(--ease), border-color .15s; }
+.sound-card:hover { transform: translateY(-2px); } .sound-card.on { border-color: var(--ink); }
+.sound-ico { width: 34px; height: 34px; border-radius: 50%; background: var(--tint-1); color: var(--tint-1-fg); display: grid; place-items: center; flex: none; }
+.sound-card:nth-child(4n+2) .sound-ico { background: var(--tint-2); color: var(--tint-2-fg); } .sound-card:nth-child(4n+3) .sound-ico { background: var(--tint-3); color: var(--tint-3-fg); } .sound-card:nth-child(4n) .sound-ico { background: var(--tint-4); color: var(--tint-4-fg); }
+.sound-t { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.25; } .sound-t b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .sound-t small { color: var(--text-3); font-size: .74rem; }

@@ -7,6 +7,7 @@ import { Sidebar } from './ui/Sidebar.tsx';
 import { RightPanel } from './ui/RightPanel.tsx';
 import { Palette } from './ui/Palette.tsx';
 import { DialogHost, Toasts } from './ui/dialogs.tsx';
+import { AlarmHost } from './ui/AlarmHost.tsx';
 import { Icon, type IconName } from './ui/Icon.tsx';
 import { Welcome } from './views/Welcome.tsx';
 import { Home } from './views/Home.tsx';
@@ -17,7 +18,8 @@ import { GraphView } from './views/GraphView.tsx';
 import { Settings } from './views/Settings.tsx';
 import { WidgetWindow } from './views/WidgetWindow.tsx';
 import { useAutoSync } from './sync/state.ts';
-import { handleLaunchParams, useDeepLinks, useReminders, useTauriShell, useWidgetSync } from './native/bridge.ts';
+import { handleLaunchParams, useDeepLinks, useTauriShell, useWidgetSync } from './native/bridge.ts';
+import { useReminders } from './native/reminders.ts';
 import { newNote, openToday } from './actions.ts';
 import { useIsMobile } from './hooks.ts';
 
@@ -135,6 +137,7 @@ function MainApp() {
       {mobile && <BottomNav />}
       <Palette />
       <DialogHost />
+      <AlarmHost />
       <Toasts />
     </div>
   );

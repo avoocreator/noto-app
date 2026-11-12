@@ -4,9 +4,9 @@ import { Icon } from '../ui/Icon.tsx';
 import { useApp, useVault } from '../store.ts';
 import { addDays, formatLongDate, greeting, relativeTime, startOfDay, ymd, hm } from '../lib/dates.ts';
 import { basename, stripExt } from '../lib/analyze.ts';
-import { smartParse } from '../lib/smartParse.ts';
 import { bucketOf } from '../lib/tasks.ts';
-import { newCanvas, newNote, openToday, quickAddTask, toggleTaskItem } from '../actions.ts';
+import { QuickTask } from '../ui/QuickTask.tsx';
+import { newCanvas, newNote, openToday, toggleTaskItem } from '../actions.ts';
 import { useReducedMotion } from '../theme/useTheme.ts';
 
 const DAYS = 14;
@@ -46,7 +46,6 @@ export function Home() {
   const vault = useVault();
   const { openPath, setView, openPalette } = useApp();
   const reduce = useReducedMotion();
-  const [quick, setQuick] = useState('');
   const [picked, setPicked] = useState<string | null>(null);
 
   const data = useMemo(() => {
@@ -73,7 +72,6 @@ export function Home() {
 
   if (!vault || !data) return null;
   const now = new Date();
-  const parsed = quick.trim() ? smartParse(quick) : null;
   const maxBar = Math.max(1, ...data.perDay);
   const pickedMeta = (picked && vault.meta(picked)) || data.notes[0];
   const chipTints = ['yellow', 'pink', 'blue', 'green'];
@@ -97,23 +95,7 @@ export function Home() {
         {formatLongDate(now)}. Kamu punya <b>{data.b.today}</b> tugas hari ini{data.b.overdue ? <> dan <b className="warn-text">{data.b.overdue}</b> yang terlambat</> : ''}, dengan {data.notes.length} catatan di vault.
       </p>
 
-      <form
-        className="quick"
-        onSubmit={async (e) => { e.preventDefault(); if (await quickAddTask(quick)) setQuick(''); }}
-      >
-        <Icon name="plus" size={18} />
-        <input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder="Tugas cepat: beli susu besok jam 10 !penting #belanja" aria-label="Tugas cepat" />
-        {parsed && (
-          <span className="quick-chips">
-            {parsed.due && <i><Icon name="calendar" size={12} /> {parsed.due}</i>}
-            {parsed.time && <i><Icon name="clock" size={12} /> {parsed.time}</i>}
-            {parsed.priority && <i><Icon name="flag" size={12} /> {parsed.priority === 'high' ? 'penting' : parsed.priority}</i>}
-            {parsed.recur && <i><Icon name="repeat" size={12} /> tiap {parsed.recur}</i>}
-            {parsed.tags.map((t) => <i key={t}>#{t}</i>)}
-          </span>
-        )}
-        <button className="btn ink" type="submit" disabled={!parsed?.text}>Tambah</button>
-      </form>
+      <QuickTask placeholder="Tugas cepat: beli susu besok jam 10 !penting #belanja" label="Tugas cepat" />
 
       <div className="bento">
         <motion.section className="card tint-1 span-2" whileHover={reduce ? undefined : { y: -3 }} onClick={() => setView('notes')}>

@@ -1,6 +1,6 @@
 import { useApp } from './store.ts';
 import { smartParse } from './lib/smartParse.ts';
-import { formatTaskLine, toggleTaskInContent } from './lib/tasks.ts';
+import { formatTaskLine, patchTaskLine, toggleTaskInContent, type TaskPatch } from './lib/tasks.ts';
 import { basename, dirname, stripExt } from './lib/analyze.ts';
 import { ask, confirmBox } from './ui/dialogs.tsx';
 
@@ -97,14 +97,30 @@ export async function toggleTaskItem(t: { path: string; line: number }) {
   await vault.write(t.path, toggleTaskInContent(c, t.line));
 }
 
+/** Ubah tanggal/jam/prioritas/ulang satu tugas di berkasnya. */
+export async function updateTask(t: { path: string; line: number }, patch: TaskPatch) {
+  const { vault } = app();
+  const c = vault?.content(t.path);
+  if (!vault || c === undefined) return;
+  const lines = c.split('\n');
+  if (lines[t.line] === undefined) return;
+  lines[t.line] = patchTaskLine(lines[t.line], patch);
+  await vault.write(t.path, lines.join('\n'));
+}
+
 export const INBOX = 'Inbox.md';
 
 /** Tambah tugas dari kalimat bebas ke Inbox.md. Mengembalikan teks tugas yang ditulis. */
-export async function quickAddTask(input: string, target = INBOX): Promise<string | null> {
+export async function quickAddTask(input: string, target = INBOX, over: TaskPatch = {}): Promise<string | null> {
   const { vault } = app();
   if (!vault || !input.trim()) return null;
   const parsed = smartParse(input);
   if (!parsed.text) return null;
+  // pilihan dari menu tanggal/jam menimpa hasil tebakan teks
+  if (over.due !== undefined) parsed.due = over.due ?? undefined;
+  if (over.time !== undefined) parsed.time = over.time ?? undefined;
+  if (over.priority !== undefined) parsed.priority = over.priority ?? undefined;
+  if (over.recur !== undefined) parsed.recur = over.recur ?? undefined;
   const line = formatTaskLine(parsed);
   const cur = vault.content(target);
   const next = cur === undefined ? `# Inbox\n\n${line}\n` : cur.replace(/\n*$/, '\n') + line + '\n';

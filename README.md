@@ -17,6 +17,8 @@ npm run build     # typecheck + build produksi ke dist/
 - **Vault** = folder berisi `.md` dan `.canvas` (JSON Canvas, kompatibel Obsidian). Browser: folder asli (Chrome/Edge) atau penyimpanan internal; desktop (Tauri): folder asli; Android: penyimpanan privat aplikasi.
 - **Editor live-preview** (CodeMirror 6): `[[wikilink]]`, `#tag`, callout, tugas, gambar tempel/seret, menu `/`.
 - **Tugas di dalam catatan** (format Obsidian Tasks): tanggal, jam, prioritas, ulang; ketik bahasa alami ("besok jam 9 rapat").
+- **Menu tanggal & jam** di kolom tambah tugas (dan ikon kalender di tiap tugas untuk mengubah): pilihan cepat, kalender, jam, prioritas, ulang.
+- **Pengingat & alarm**: gaya Notifikasi atau Alarm (nada berulang + layar Selesai/Tunda/Matikan), 6 nada bawaan, impor suara `.mp3`, volume, jam bawaan untuk tugas tanpa jam. Android memakai notifikasi terjadwal OS (nada bawaan dirender ke `res/raw` oleh `scripts/make-sounds.py`).
 - **Canvas** tak terbatas: kartu, catatan, gambar, tautan, grup, panah, minimap, undo/redo.
 - **Graf**, backlink, tautan tak tertaut, riwayat versi, tong sampah, template, catatan harian.
 - **Tema**: terang/gelap/sistem × palet (Sorbet, Jeruk, Mint, Lavender, Nord, Mono, Custom) dengan audit kontras.

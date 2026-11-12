@@ -6,7 +6,6 @@ import { widgetSummary, type WidgetSummary } from '../lib/widget.ts';
 import { isTauri } from '../vault/tauriFs.ts';
 import { useApp } from '../store.ts';
 import { newNote, quickAddTask } from '../actions.ts';
-import { ymd } from '../lib/dates.ts';
 
 /* ── Widget Android (plugin native "NotoWidget", lihat native/android-widget) ───────────── */
 interface NotoWidgetPlugin {
@@ -109,88 +108,4 @@ export async function openWidgetWindow(): Promise<boolean> {
   }
   const w = window.open(`${location.pathname}?widget=1`, 'noto-widget', 'popup=yes,width=340,height=380');
   return !!w;
-}
-
-/* ── Pengingat tugas ─────────────────────────────────────────────────────────────────── */
-const REM_KEY = 'noto-reminders';
-export interface ReminderPrefs { on: boolean; lead: number }
-export const loadReminderPrefs = (): ReminderPrefs => {
-  try { return { on: false, lead: 10, ...(JSON.parse(localStorage.getItem(REM_KEY) || '{}') as Partial<ReminderPrefs>) }; } catch { return { on: false, lead: 10 }; }
-};
-export const saveReminderPrefs = (p: ReminderPrefs) => { try { localStorage.setItem(REM_KEY, JSON.stringify(p)); } catch { /* abaikan */ } };
-
-export async function ensureNotifyPermission(): Promise<boolean> {
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const { LocalNotifications } = await import('@capacitor/local-notifications');
-      const r = await LocalNotifications.requestPermissions();
-      return r.display === 'granted';
-    } catch { return false; }
-  }
-  if (typeof Notification === 'undefined') return false;
-  if (Notification.permission === 'granted') return true;
-  return (await Notification.requestPermission()) === 'granted';
-}
-
-export async function notifyNow(title: string, body: string) {
-  if (Capacitor.isNativePlatform()) {
-    const { LocalNotifications } = await import('@capacitor/local-notifications');
-    await LocalNotifications.schedule({ notifications: [{ id: Math.floor(Math.random() * 2_000_000_000), title, body, schedule: { at: new Date(Date.now() + 500) } }] });
-  } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification(title, { body, icon: './icons/icon-192.png' });
-}
-
-const hashId = (s: string) => { let h = 7; for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0; return Math.abs(h) % 2_000_000_000; };
-
-export function useReminders(vault: Vault | null) {
-  const fired = useRef(new Set<string>());
-  useEffect(() => {
-    if (!vault) return;
-    const prefs = loadReminderPrefs();
-    if (!prefs.on) return;
-    const native = Capacitor.isNativePlatform();
-
-    if (native) {
-      // jadwalkan di OS agar tetap berbunyi saat app tertutup
-      const schedule = async () => {
-        try {
-          const { LocalNotifications } = await import('@capacitor/local-notifications');
-          const pending = await LocalNotifications.getPending();
-          if (pending.notifications.length) await LocalNotifications.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
-          const now = Date.now();
-          const list = vault.index.tasks
-            .filter((t) => !t.done && t.due && t.time)
-            .map((t) => ({ t, at: new Date(`${t.due}T${t.time}:00`).getTime() - prefs.lead * 60_000 }))
-            .filter((x) => x.at > now && x.at < now + 14 * 86_400_000)
-            .sort((a, b) => a.at - b.at)
-            .slice(0, 60);
-          if (list.length) {
-            await LocalNotifications.schedule({
-              notifications: list.map(({ t, at }) => ({ id: hashId(t.path + t.line + t.text + t.due), title: t.text, body: `${t.time}${prefs.lead ? ` · ${prefs.lead} menit lagi` : ''}`, schedule: { at: new Date(at) } })),
-            });
-          }
-        } catch { /* izin belum diberikan */ }
-      };
-      let timer: number | undefined;
-      const off = vault.subscribe(() => { window.clearTimeout(timer); timer = window.setTimeout(schedule, 1500); });
-      void schedule();
-      return () => { off(); window.clearTimeout(timer); };
-    }
-
-    const check = () => {
-      const now = Date.now();
-      const today = ymd(new Date());
-      for (const t of vault.index.tasks) {
-        if (t.done || t.due !== today || !t.time) continue;
-        const at = new Date(`${t.due}T${t.time}:00`).getTime() - prefs.lead * 60_000;
-        const key = `${t.path}:${t.line}:${t.due}:${t.time}`;
-        if (now >= at && now < at + 5 * 60_000 && !fired.current.has(key)) {
-          fired.current.add(key);
-          void notifyNow(t.text, `${t.time}${prefs.lead ? ` · ${prefs.lead} menit lagi` : ''}`);
-        }
-      }
-    };
-    const iv = window.setInterval(check, 30_000);
-    check();
-    return () => window.clearInterval(iv);
-  }, [vault]);
 }

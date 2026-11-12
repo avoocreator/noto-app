@@ -3,11 +3,12 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Icon } from '../ui/Icon.tsx';
 import { useApp, useVault } from '../store.ts';
 import { DAYS_ID, MONTHS_SHORT_ID, parseYmd, startOfDay, ymd } from '../lib/dates.ts';
-import { smartParse } from '../lib/smartParse.ts';
 import { bucketOf, type TaskBucket } from '../lib/tasks.ts';
 import type { TaskWithSource } from '../lib/vaultIndex.ts';
 import { basename, stripExt } from '../lib/analyze.ts';
-import { quickAddTask, toggleTaskItem } from '../actions.ts';
+import { toggleTaskItem, updateTask } from '../actions.ts';
+import { QuickTask } from '../ui/QuickTask.tsx';
+import { TaskPicker } from '../ui/TaskPicker.tsx';
 import { useReducedMotion } from '../theme/useTheme.ts';
 
 type Filter = 'open' | TaskBucket;
@@ -45,8 +46,6 @@ export function TasksView() {
   const [filter, setFilter] = useState<Filter>('open');
   const [tag, setTag] = useState<string | null>(null);
   const [q, setQ] = useState('');
-  const [quick, setQuick] = useState('');
-  const parsed = quick.trim() ? smartParse(quick) : null;
 
   const today = new Date();
   const todayKey = ymd(today);
@@ -105,19 +104,7 @@ export function TasksView() {
         </div>
       </header>
 
-      <form className="quick big" onSubmit={async (e) => { e.preventDefault(); if (await quickAddTask(quick)) setQuick(''); }}>
-        <Icon name="plus" size={18} />
-        <input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder="Tambah tugas… misalnya: rapat jumat 14:30 !penting #kerja tiap minggu" aria-label="Tambah tugas" />
-        {parsed && (
-          <span className="quick-chips">
-            {parsed.due && <i><Icon name="calendar" size={12} /> {dueLabel(parsed.due, today)}</i>}
-            {parsed.time && <i><Icon name="clock" size={12} /> {parsed.time}</i>}
-            {parsed.priority && <i><Icon name="flag" size={12} /> {parsed.priority === 'high' ? 'penting' : parsed.priority}</i>}
-            {parsed.recur && <i><Icon name="repeat" size={12} /> tiap {parsed.recur}</i>}
-          </span>
-        )}
-        <button className="btn ink" type="submit" disabled={!parsed?.text}>Tambah</button>
-      </form>
+      <QuickTask big placeholder="Tambah tugas… misalnya: rapat jumat 14:30 !penting #kerja tiap minggu" />
 
       <div className="filters">
         <div className="seg" role="tablist">
@@ -174,6 +161,7 @@ export function TasksView() {
                       {t.time && <i><Icon name="clock" size={12} /> {t.time}</i>}
                       {t.due && <i className={'due' + (t.due < todayKey && !t.done ? ' late' : '')}><Icon name="calendar" size={12} /> {dueLabel(t.due, today)}</i>}
                     </span>
+                    <TaskPicker compact value={{ due: t.due, time: t.time, priority: t.priority, recur: t.recur }} onChange={(v) => void updateTask(t, { due: v.due ?? null, time: v.time ?? null, priority: v.priority ?? null, recur: v.recur ?? null })} />
                   </motion.li>
                 ))}
               </AnimatePresence>

@@ -148,3 +148,40 @@ export function bucketOf(t: TaskItem, today: string): TaskBucket {
   if (t.due === today) return 'today';
   return 'upcoming';
 }
+
+export interface TaskPatch {
+  due?: string | null;
+  time?: string | null;
+  priority?: Priority | null;
+  recur?: Recur | null;
+}
+
+/** Ubah tanggal/jam/prioritas/ulang pada satu baris tugas tanpa menyentuh teks & tag. null = hapus, undefined = biarkan. */
+export function patchTaskLine(line: string, patch: TaskPatch): string {
+  const m = TASK_LINE.exec(line);
+  if (!m) return line;
+  let rest = m[4];
+  const strip = (re: RegExp) => { rest = rest.replace(re, ' '); };
+  const DUE = /📅\s*\d{4}-\d{2}-\d{2}/, TIME = /⏰\s*\d{1,2}:\d{2}/, PRI = /(⏫|🔼|🔽)/, REC = /🔁\s*(every\s+(day|week|month|year)|daily|weekly|monthly|yearly)/i;
+  const done = /✅\s*\d{4}-\d{2}-\d{2}/.exec(rest)?.[0];
+  if (done) strip(/✅\s*\d{4}-\d{2}-\d{2}/);
+  const cur = {
+    due: /📅\s*(\d{4}-\d{2}-\d{2})/.exec(rest)?.[1],
+    time: /⏰\s*(\d{1,2}:\d{2})/.exec(rest)?.[1],
+    pri: PRI.exec(rest)?.[1],
+    rec: REC.exec(rest)?.[0],
+  };
+  strip(DUE); strip(TIME); strip(PRI); strip(REC); // semua token ditulis ulang di bawah
+  rest = rest.replace(/\s+/g, ' ').trim();
+  const add: string[] = [];
+  if (patch.priority) add.push(PRI_ICON[patch.priority]);
+  else if (patch.priority === undefined && cur.pri) add.push(cur.pri);
+  if (patch.recur) add.push(`🔁 every ${patch.recur}`);
+  else if (patch.recur === undefined && cur.rec) add.push(cur.rec);
+  const time = patch.time === undefined ? cur.time : patch.time;
+  if (time) add.push(`⏰ ${time.padStart(5, '0')}`);
+  const due = patch.due === undefined ? cur.due : patch.due;
+  if (due) add.push(`📅 ${due}`);
+  if (done) add.push(done);
+  return `${m[1]}${m[2]} [${m[3]}] ${[rest, ...add].filter(Boolean).join(' ')}`;
+}
