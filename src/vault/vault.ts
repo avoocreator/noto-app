@@ -9,6 +9,8 @@ import { randomId } from '../lib/hash.ts';
 import { emptyCanvas, serializeCanvas } from '../lib/jsoncanvas.ts';
 import { normPath, safeName, uniquePath, type FileEntry, type VaultFS } from './fs.ts';
 
+export type DisplayMode = 'simple' | 'full';
+
 export interface VaultConfig {
   dailyFolder: string;
   templateFolder: string;
@@ -21,6 +23,8 @@ export interface VaultConfig {
   syncId: string | null;
   /** ikon (emoji) per berkas/folder */
   icons: Record<string, string>;
+  /** mode tampilan: 'simple' (fokus menulis & tenang) atau 'full' (lengkap dengan graf & panel teknis) */
+  displayMode: DisplayMode;
 }
 
 const DEFAULT_CONFIG = (): VaultConfig => ({
@@ -32,6 +36,7 @@ const DEFAULT_CONFIG = (): VaultConfig => ({
   deviceId: 'dev-' + randomId(3),
   syncId: null,
   icons: {},
+  displayMode: 'simple',
 });
 
 export interface HistoryEntry {
@@ -450,6 +455,9 @@ export class Vault {
     this.cfg = { ...this.cfg, ...patch };
     await this.saveConfig();
     this.emit();
+  }
+  async setDisplayMode(mode: DisplayMode) {
+    await this.setConfig({ displayMode: mode });
   }
   /** Pindahkan ikon saat berkas/folder dipindah atau diganti namanya. */
   private remapIcons(from: string, to: string) {

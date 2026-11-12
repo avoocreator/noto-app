@@ -1,8 +1,9 @@
 import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
-import type { Vault } from './vault/vault.ts';
+import type { DisplayMode, Vault } from './vault/vault.ts';
 import type { VaultRecord } from './vault/manager.ts';
 
+export type { DisplayMode };
 export type View = 'home' | 'notes' | 'canvas' | 'tasks' | 'graph' | 'settings';
 export type RightTab = 'day' | 'outline' | 'links' | 'history';
 export type PaletteMode = 'files' | 'commands' | null;
@@ -33,6 +34,9 @@ interface AppState {
   editorMode: 'live' | 'source';
   toggleEditorMode: () => void;
 
+  displayMode: DisplayMode;
+  setDisplayMode: (m: DisplayMode) => void;
+
   rightOpen: boolean;
   rightTab: RightTab;
   setRightTab: (t: RightTab) => void;
@@ -60,7 +64,15 @@ const persist = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.
 export const useApp = create<AppState>((set, get) => ({
   vault: null,
   record: null,
-  setVault: (vault, record) => set({ vault, record, tabs: [], active: null, view: 'home', pendingLine: null }),
+  setVault: (vault, record) => set({
+    vault,
+    record,
+    tabs: [],
+    active: null,
+    view: 'home',
+    pendingLine: null,
+    displayMode: vault?.config.displayMode ?? 'simple',
+  }),
 
   view: 'home',
   setView: (view) => set({ view, drawer: false }),
@@ -98,6 +110,13 @@ export const useApp = create<AppState>((set, get) => ({
     set({ editorMode: m });
   },
 
+  displayMode: 'simple',
+  setDisplayMode: (displayMode) => {
+    const { vault } = get();
+    if (vault) void vault.setDisplayMode(displayMode);
+    set({ displayMode });
+  },
+
   rightOpen: persisted('noto-right-open', typeof window === 'undefined' || window.innerWidth > 900),
   rightTab: 'day',
   setRightTab: (rightTab) => set({ rightTab, rightOpen: true }),
@@ -129,3 +148,6 @@ export function useVault(): Vault | null {
   useSyncExternalStore(vault ? vault.subscribe : noop, vault ? vault.getVersion : zero);
   return vault;
 }
+
+export const useDisplayMode = () => useApp((s) => s.displayMode);
+
